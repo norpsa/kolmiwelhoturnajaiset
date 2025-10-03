@@ -23,8 +23,9 @@ export interface Card {
 
 export interface SerializedPlayer {
   id: string;
-  tricksTaken?: number;
-  tricksForecasted?: number;
+  tricksTaken: number;
+  tricksForecasted: number | null;
+  cardsInHand: number;
 }
 
 export interface Forecast {
@@ -44,17 +45,14 @@ export interface Round {
   currentTrick: number;
   forecasts: Forecast[];
   tricksWon: Record<string, number>;
-  trump?: Card;
+  trump: Card | null;
 }
 
 export interface GameState {
-  round: number;
+  round: Round | null;
   totalRounds: number;
   players: SerializedPlayer[];
   currentTurn: string;
   scores: Record<string, number>;
-  forecasts: Forecast[];
-  tricksPlayed: number;
-  trump?: Card;
-  currentHand?: Card[];
+  currentHand: Card[];
 }

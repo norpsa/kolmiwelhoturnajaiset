@@ -3,14 +3,14 @@ import { Card, SerializedPlayer } from './types';
 export class Player {
   public id: string;
   public hand: Card[] = [];
-  public tricksTaken?: number;
-  public tricksForecasted?: number;
+  public tricksTaken: number = 0;
+  public tricksForecasted: number | null = null;
 
   constructor(id: string) {
     this.id = id;
   }
 
-  drawCard(card: Card): void {
+  addCardToHand(card: Card): void {
     this.hand.push(card);
   }
 
@@ -25,7 +25,8 @@ export class Player {
     return {
       id: this.id,
       tricksTaken: this.tricksTaken,
-      tricksForecasted: this.tricksForecasted
+      tricksForecasted: this.tricksForecasted,
+      cardsInHand: this.hand.length
     };
   }
 }

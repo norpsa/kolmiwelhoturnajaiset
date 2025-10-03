@@ -43,20 +43,21 @@ io.on('connection', (socket) => {
 
     game = new GameEngine(registeredPlayers);
     gameStarted = true;
-    io.emit('gameStarted', game.getState(socket.id));
+    io.emit('gameStarted');
+    broadcastStates();
   });
 
   socket.on('setForecast', ({ playerId, bid }) => {
     if (!game) return;
     game.setForecast(playerId, bid);
-    io.emit('state', game.getState(socket.id));
+    broadcastStates();
   });
 
   socket.on('playCard', ({ playerId, cardIndex }) => {
     if (!game) return;
     try {
       game.playCard(playerId, cardIndex);
-      io.emit('state', game.getState(socket.id));
+      broadcastStates();
     } catch (err: any) {
       socket.emit('errorMessage', err.message);
     }
@@ -69,6 +70,22 @@ io.on('connection', (socket) => {
     io.emit('playersUpdated', registeredPlayers);
   });
 });
+
+const broadcastStates = () => {
+  if(!game) {
+    return;
+  }
+  for (const playerId of registeredPlayers) {
+    sendPlayerState(playerId);
+  }
+}
+
+const sendPlayerState = (playerId: string) => {
+  if(!game) return;
+  io.sockets.sockets.get(playerId)?.emit('state', game.getState(playerId));
+}
+
+// TODO joku systeemi joka kuuluttaa kaikille pelaajille oman tilansa
 
 server.listen(3000, () => {
   console.log('Game server running at http://localhost:3000');

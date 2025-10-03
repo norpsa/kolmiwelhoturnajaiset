@@ -10,7 +10,7 @@ export class GameEngine {
   private roundNumber = 1;
   private totalRounds = 10;
   private scores: Record<string, number> = {};
-  private currentRound!: Round;
+  private currentRound: Round | null = null;
 
   constructor(playerIds: string[]) {
     this.players = playerIds.map(id => new Player(id));
@@ -25,9 +25,11 @@ export class GameEngine {
     this.deck.reset();
     this.deck.shuffle();
 
+    // TODO: kierroksen aloittajan päättäminen
+
     for (let i = 0; i < this.roundNumber; i++) {
       this.players.forEach(player => {
-        player.drawCard(this.deck.draw());
+        player.addCardToHand(this.deck.draw());
       });
     }
 
@@ -36,20 +38,23 @@ export class GameEngine {
       tricks: [],
       currentTrick: 0,
       forecasts: [],
-      tricksWon: {},
-      trump: this.deck.cards ? this.deck.draw() : undefined,
+      tricksWon: this.players.reduce<Record<string, number>>((acc, player) => {
+        acc[player.id] = 0;
+        return acc;
+      }, {}),
+      trump: this.deck.cards ? this.deck.draw() : null,
     };
-
-    this.players.forEach(p => (this.currentRound.tricksWon[p.id] = 0));
   }
 
   // players set their forecasts at start of round
   setForecast(playerId: string, bid: number) {
+    if(!this.currentRound) throw new Error('Round not found');
     const player = this.players.find(p => p.id === playerId);
     if (!player) throw new Error('Player not found');
     if (player !== this.players[this.currentTurn]) {
       throw new Error("Not this player's turn");
     }
+
     if (bid < 0 || bid > this.roundNumber) {
       throw new Error('Invalid forecast');
     }
@@ -61,6 +66,7 @@ export class GameEngine {
   }
 
   playCard(playerId: string, cardIndex: number) {
+    if(!this.currentRound) throw new Error('Round not found');
     const player = this.players.find(p => p.id === playerId);
     if (!player) throw new Error('Player not found');
     if (player !== this.players[this.currentTurn]) {
@@ -119,6 +125,7 @@ export class GameEngine {
   }
 
   private scoreRound() {
+    if(!this.currentRound) throw new Error('Round not found');
     for (const forecast of this.currentRound.forecasts) {
       const actual = this.currentRound.tricksWon[forecast.playerId];
       if (forecast.bid === actual) {
@@ -130,16 +137,15 @@ export class GameEngine {
   }
 
   getState(playerId: string): GameState {
+    const player = this.players.find(p => p.id === playerId);
+    if(!player) throw new Error('Player not found ' + playerId);
     return {
-      round: this.roundNumber,
+      round: this.currentRound,
       totalRounds: this.totalRounds,
       players: this.players.map(p => p.serialize()),
-      currentHand: this.players.find(p => p.id === playerId)?.hand,
+      currentHand: player.hand,
       currentTurn: this.players[this.currentTurn].id,
-      scores: this.scores,
-      forecasts: this.currentRound.forecasts,
-      trump: this.currentRound.trump,
-      tricksPlayed: this.currentRound.currentTrick,
+      scores: this.scores
     };
   }
 }
