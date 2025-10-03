@@ -1,5 +1,5 @@
-import { Deck } from './Deck';
-import { Player } from './Player';
+import { Deck } from './deck';
+import { Player } from './player';
 import { Card, Trick, Round, Forecast, GameState } from './types';
 
 export class GameEngine {
