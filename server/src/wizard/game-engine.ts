@@ -5,7 +5,6 @@ import { Card, Trick, Round, Forecast, GameState } from './types';
 export class GameEngine {
   private players: Player[];
   private deck: Deck;
-  private discardPile: Card[] = [];
   private currentTurn = 0;
 
   private roundNumber = 1;
@@ -46,6 +45,11 @@ export class GameEngine {
 
   // players set their forecasts at start of round
   setForecast(playerId: string, bid: number) {
+    const player = this.players.find(p => p.id === playerId);
+    if (!player) throw new Error('Player not found');
+    if (player !== this.players[this.currentTurn]) {
+      throw new Error("Not this player's turn");
+    }
     if (bid < 0 || bid > this.roundNumber) {
       throw new Error('Invalid forecast');
     }
@@ -53,6 +57,7 @@ export class GameEngine {
       throw new Error('Forecast already set');
     }
     this.currentRound.forecasts.push({ playerId, bid });
+    this.currentTurn = (this.currentTurn + 1) % this.players.length;
   }
 
   playCard(playerId: string, cardIndex: number) {
