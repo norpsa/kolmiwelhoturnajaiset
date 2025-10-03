@@ -49,6 +49,7 @@ io.on('connection', (socket) => {
 
   socket.on('setForecast', ({ playerId, bid }) => {
     if (!game) return;
+    console.log(playerId, bid);
     game.setForecast(playerId, bid);
     broadcastStates();
   });
@@ -84,8 +85,6 @@ const sendPlayerState = (playerId: string) => {
   if(!game) return;
   io.sockets.sockets.get(playerId)?.emit('state', game.getState(playerId));
 }
-
-// TODO joku systeemi joka kuuluttaa kaikille pelaajille oman tilansa
 
 server.listen(3000, () => {
   console.log('Game server running at http://localhost:3000');
