@@ -3,6 +3,7 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import { GameEngine } from './wizard/game-engine';
+import { GamePlayAction, GameStateAction } from './wizard/types';
 
 const app = express();
 const server = http.createServer(app);
@@ -15,59 +16,59 @@ let gameStarted = false;
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
-  socket.on('register', (playerId: string) => {
+  socket.on(GameStateAction.Register, (playerId: string) => {
     if (gameStarted) {
-      socket.emit('errorMessage', 'Game already started. Cannot register.');
+      socket.emit(GameStateAction.ErrorMessage, 'Game already started. Cannot register.');
       return;
     }
     if (!registeredPlayers.includes(socket.id)) {
       registeredPlayers.push(socket.id);
       console.log(`Player registered: ${socket.id}`);
     }
-    io.emit('playersUpdated', registeredPlayers);
+    io.emit(GameStateAction.PlayersUpdated, registeredPlayers);
   });
 
-  socket.on('startGame', () => {
+  socket.on(GameStateAction.StartGame, () => {
     if (gameStarted) {
-      socket.emit('errorMessage', 'Game already started');
+      socket.emit(GameStateAction.ErrorMessage, 'Game already started');
       return;
     }
     if (!registeredPlayers.includes(socket.id)) {
-      socket.emit('errorMessage', 'You must be registered to start the game');
+      socket.emit(GameStateAction.ErrorMessage, 'You must be registered to start the game');
       return;
     }
     if (registeredPlayers.length < 2) {
-      socket.emit('errorMessage', 'Need at least 2 players to start');
+      socket.emit(GameStateAction.ErrorMessage, 'Need at least 2 players to start');
       return;
     }
 
     game = new GameEngine(registeredPlayers);
     gameStarted = true;
-    io.emit('gameStarted');
+    io.emit(GameStateAction.GameStarted);
     broadcastStates();
   });
 
-  socket.on('setForecast', ({ playerId, bid }) => {
+  socket.on(GamePlayAction.SetForecast, ({ playerId, bid }) => {
     if (!game) return;
     console.log(playerId, bid);
     game.setForecast(playerId, bid);
     broadcastStates();
   });
 
-  socket.on('setTrump', ({ playerId, color }) => {
+  socket.on(GamePlayAction.SelectTrump, ({ playerId, color }) => {
     if (!game) return;
     console.log(playerId, color);
-    game.setForecast(playerId, color);
+    game.setTrump(playerId, color);
     broadcastStates();
   });
 
-  socket.on('playCard', ({ playerId, cardIndex }) => {
+  socket.on(GamePlayAction.PlayCard, ({ playerId, cardIndex }) => {
     if (!game) return;
     try {
       game.playCard(playerId, cardIndex);
       broadcastStates();
     } catch (err: any) {
-      socket.emit('errorMessage', err.message);
+      socket.emit(GameStateAction.ErrorMessage, err.message);
     }
   });
 
@@ -75,7 +76,7 @@ io.on('connection', (socket) => {
     console.log('Player disconnected:', socket.id);
     const index = registeredPlayers.indexOf(socket.id);
     if (index !== -1) registeredPlayers.splice(index, 1);
-    io.emit('playersUpdated', registeredPlayers);
+    io.emit(GameStateAction.PlayersUpdated, registeredPlayers);
   });
 });
 
@@ -90,7 +91,7 @@ const broadcastStates = () => {
 
 const sendPlayerState = (playerId: string) => {
   if(!game) return;
-  io.sockets.sockets.get(playerId)?.emit('state', game.getState(playerId));
+  io.sockets.sockets.get(playerId)?.emit(GameStateAction.State, game.getState(playerId));
 }
 
 server.listen(3000, () => {

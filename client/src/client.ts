@@ -92,6 +92,13 @@ class WizardCliClient {
         console.log(`Sent setForecast bid=${bid}.`);
         break;
       }
+      case "trump":
+      case "t": {
+        const color = String(args[0]);
+        this.socket.emit("selectTrump", { playerId: this.socket.id, color });
+        console.log(`Sent selectTrump trump=${color}.`);
+        break;
+      }
       case "play":
       case "p": {
         const cardIndex = Number(args[0]);
@@ -136,6 +143,7 @@ class WizardCliClient {
   register (r)         Send 'register' with your socket id
   start (s)            Send 'startGame' (need ≥2 registered players)
   forecast (f) <n>     Send 'setForecast' with bid=n
+  trump (t) <c>        Send 'setTrump' with color=c 
   play (p) <i>         Send 'playCard' with cardIndex=i
   who                  Show players from last 'playersUpdated'
   state                Print last received state JSON

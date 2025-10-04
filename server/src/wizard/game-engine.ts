@@ -1,6 +1,6 @@
 import { Deck } from './deck';
 import { Player } from './player';
-import { Card, Trick, Round, Forecast, GameState, Color } from './types';
+import { Trick, Round, GameState, Color, GamePlayAction } from './types';
 
 export class GameEngine {
   private players: Player[];
@@ -11,6 +11,8 @@ export class GameEngine {
   private totalRounds = 10;
   private scores: Record<string, number> = {};
   private currentRound: Round | null = null;
+
+  private currentAction: GamePlayAction | null = null;
 
   constructor(playerIds: string[]) {
     this.players = playerIds.map(id => new Player(id));
@@ -25,7 +27,14 @@ export class GameEngine {
     this.deck.reset();
     this.deck.shuffle();
 
-    // TODO: kierroksen aloittajan päättäminen
+    let firstPlayerIndex;
+    if(this.roundNumber === 1 || !this.currentRound) {
+      const randomIndex = Math.floor(Math.random() * this.players.length);
+      firstPlayerIndex = randomIndex;
+    } else {
+      firstPlayerIndex = (this.currentRound.firstPlayerOfRoundIndex + 1) % this.players.length;
+    }
+    
 
     for (let i = 0; i < this.roundNumber; i++) {
       this.players.forEach(player => {
@@ -34,6 +43,15 @@ export class GameEngine {
     }
 
     let trump = this.deck.cards ? this.deck.draw() : null;
+
+    // If trump card is Z, last player of the round selects trump color
+    if(trump && trump.rank === 'Z') {
+      this.currentAction = GamePlayAction.SelectTrump;
+      this.currentTurn = (firstPlayerIndex + this.players.length - 1) % this.players.length;
+    } else {
+      this.currentAction = GamePlayAction.SetForecast;
+      this.currentTurn = firstPlayerIndex;
+    }
 
     this.currentRound = {
       roundNumber: this.roundNumber,
@@ -45,7 +63,8 @@ export class GameEngine {
         return acc;
       }, {}),
       trump: trump,
-      trumpColor: trump ? trump.color : null
+      trumpColor: trump ? trump.color : null,
+      firstPlayerOfRoundIndex: firstPlayerIndex
     };
   }
 
@@ -57,6 +76,8 @@ export class GameEngine {
       throw new Error("Not this player's turn");
     }
     this.currentRound.trumpColor = color;
+    this.currentAction = GamePlayAction.SetForecast;
+    this.currentTurn = this.currentRound.firstPlayerOfRoundIndex;
   }
 
   // players set their forecasts at start of round
@@ -76,6 +97,12 @@ export class GameEngine {
     }
     this.currentRound.forecasts.push({ playerId, bid });
     this.currentTurn = (this.currentTurn + 1) % this.players.length;
+
+    if(this.currentRound.forecasts.length === this.players.length) {
+      this.currentAction = GamePlayAction.PlayCard;
+    } else {
+      this.currentAction = GamePlayAction.SetForecast;
+    }
   }
 
   playCard(playerId: string, cardIndex: number) {
@@ -152,13 +179,25 @@ export class GameEngine {
   getState(playerId: string): GameState {
     const player = this.players.find(p => p.id === playerId);
     if(!player) throw new Error('Player not found ' + playerId);
+
+    let currentPlayerId = this.players[this.currentTurn].id
+
+    let action = null;
+    if(this.currentAction) {
+      action = {
+        playerId: currentPlayerId,
+        action: this.currentAction
+      }
+    }
+
     return {
       round: this.currentRound,
       totalRounds: this.totalRounds,
       players: this.players.map(p => p.serialize()),
       currentHand: player.hand,
-      currentTurn: this.players[this.currentTurn].id,
-      scores: this.scores
+      currentTurn: currentPlayerId,
+      scores: this.scores,
+      nextAction: action
     };
   }
 }

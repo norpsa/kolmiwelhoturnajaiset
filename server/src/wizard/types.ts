@@ -47,6 +47,27 @@ export interface Round {
   tricksWon: Record<string, number>;
   trump: Card | null;
   trumpColor: Color | null | undefined;
+  firstPlayerOfRoundIndex: number;
+}
+
+export enum GamePlayAction {
+  SetForecast = "setForecast",
+  PlayCard = "playCard",
+  SelectTrump = "selectTrump"
+}
+
+export enum GameStateAction {
+  Register = "register",
+  StartGame = "startGame",
+  State = "state",
+  PlayersUpdated = "playersUpdated",
+  GameStarted = "gameStarted",
+  ErrorMessage = "errorMessage"
+}
+
+export interface PlayerGameAction {
+  action: GamePlayAction;
+  playerId: string;
 }
 
 export interface GameState {
@@ -56,4 +77,5 @@ export interface GameState {
   currentTurn: string;
   scores: Record<string, number>;
   currentHand: Card[];
+  nextAction: PlayerGameAction | null;
 }
