@@ -1,6 +1,6 @@
 import { Deck } from './deck';
 import { Player } from './player';
-import { Card, Trick, Round, Forecast, GameState } from './types';
+import { Card, Trick, Round, Forecast, GameState, Color } from './types';
 
 export class GameEngine {
   private players: Player[];
@@ -33,6 +33,8 @@ export class GameEngine {
       });
     }
 
+    let trump = this.deck.cards ? this.deck.draw() : null;
+
     this.currentRound = {
       roundNumber: this.roundNumber,
       tricks: [],
@@ -42,8 +44,19 @@ export class GameEngine {
         acc[player.id] = 0;
         return acc;
       }, {}),
-      trump: this.deck.cards ? this.deck.draw() : null,
+      trump: trump,
+      trumpColor: trump ? trump.color : null
     };
+  }
+
+  setTrump(playerId: string, color: Color) {
+    if(!this.currentRound) throw new Error('Round not found');
+    const player = this.players.find(p => p.id === playerId);
+    if (!player) throw new Error('Player not found');
+    if (player !== this.players[this.currentTurn]) {
+      throw new Error("Not this player's turn");
+    }
+    this.currentRound.trumpColor = color;
   }
 
   // players set their forecasts at start of round

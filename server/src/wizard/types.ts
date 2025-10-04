@@ -46,6 +46,7 @@ export interface Round {
   forecasts: Forecast[];
   tricksWon: Record<string, number>;
   trump: Card | null;
+  trumpColor: Color | null | undefined;
 }
 
 export interface GameState {

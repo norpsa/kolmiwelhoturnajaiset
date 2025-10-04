@@ -54,6 +54,13 @@ io.on('connection', (socket) => {
     broadcastStates();
   });
 
+  socket.on('setTrump', ({ playerId, color }) => {
+    if (!game) return;
+    console.log(playerId, color);
+    game.setForecast(playerId, color);
+    broadcastStates();
+  });
+
   socket.on('playCard', ({ playerId, cardIndex }) => {
     if (!game) return;
     try {
