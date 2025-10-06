@@ -80,7 +80,6 @@ export class GameEngine {
     this.currentTurn = this.currentRound.firstPlayerOfRoundIndex;
   }
 
-  // players set their forecasts at start of round
   setForecast(playerId: string, bid: number) {
     if(!this.currentRound) throw new Error('Round not found');
     const player = this.players.find(p => p.id === playerId);
@@ -95,9 +94,12 @@ export class GameEngine {
     if (this.currentRound.forecasts.some(f => f.playerId === playerId)) {
       throw new Error('Forecast already set');
     }
+
+    // TODO: estä sopulupaaminen
     this.currentRound.forecasts.push({ playerId, bid });
     this.currentTurn = (this.currentTurn + 1) % this.players.length;
 
+    // If everyone has forecasted, trick starts
     if(this.currentRound.forecasts.length === this.players.length) {
       this.currentAction = GamePlayAction.PlayCard;
     } else {
@@ -115,21 +117,32 @@ export class GameEngine {
 
     const card = player.playCard(cardIndex);
 
+    // TODO: check if card was legal to play
+
     // get or create current trick
     let trick: Trick = this.currentRound.tricks[this.currentRound.currentTrick];
     if (!trick) {
-      trick = { id: this.currentRound.currentTrick, plays: [] };
+      trick = { id: this.currentRound.currentTrick, plays: [], trickColor: undefined };
       this.currentRound.tricks[this.currentRound.currentTrick] = trick;
     }
 
-    trick.plays.push({ playerId, card });
+    if(trick.trickColor === undefined) {
+      if(card.color) {
+        trick.trickColor === card.color;
+      } else if(card.rank === 'Z') {
+        trick.trickColor = null;
+      }
+    }
 
+    trick.plays.push({ playerId, card });
+    
     // advance turn
     this.currentTurn = (this.currentTurn + 1) % this.players.length;
 
     // if trick complete
     if (trick.plays.length === this.players.length) {
-      trick.winner = this.evaluateTrick(trick);
+      if(!this.currentRound.trumpColor) throw new Error('Round should have trump color defined')
+      trick.winner = this.evaluateTrick(trick, this.currentRound.trumpColor);
       this.currentRound.tricksWon[trick.winner]++;
       this.currentTurn = this.players.findIndex(p => p.id === trick.winner)
 
@@ -148,18 +161,37 @@ export class GameEngine {
     }
   }
 
-  private evaluateTrick(trick: Trick): string {
-    // Placeholder rule: highest number wins
+  private evaluateTrick(trick: Trick, trump: Color | null): string {
     let winner = trick.plays[0];
+    let winningValue = 0;
+    if(typeof winner.card.rank === 'number') {
+      winningValue = winner.card.rank as number;
+       if(winner.card.color === trump) {
+          winningValue *= 100;
+        }
+    }
+
     for (const play of trick.plays) {
-      if (
-        typeof play.card.rank === 'number' &&
-        typeof winner.card.rank === 'number' &&
-        play.card.rank > winner.card.rank
-      ) {
-        winner = play;
+      // eka zeppo voittaa
+      if(play.card.rank === 'Z') {
+        return play.playerId;
       }
-      // TODO: implement Wizard rules for Z/N/trump
+
+      if(typeof play.card.rank === 'number') {
+        let cardValue = play.card.rank as number;
+        // Valtit on parempi
+        if(play.card.color === trump) {
+          cardValue *= 100;
+        // Jos pelattiin ei valttia eikä tikin väriä niin ei arvoa
+        } else if(play.card.color !== trick.trickColor) {
+          cardValue = 0;
+        }
+
+        if(cardValue > winningValue) {
+          winner = play;
+          winningValue = cardValue;
+        }
+      }
     }
     return winner.playerId;
   }

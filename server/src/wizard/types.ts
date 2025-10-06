@@ -36,6 +36,7 @@ export interface Forecast {
 export interface Trick {
   id: number;
   plays: { playerId: string; card: Card }[];
+  trickColor: Color | null | undefined;
   winner?: string;
 }
 
