@@ -128,7 +128,7 @@ export class GameEngine {
 
     if(trick.trickColor === undefined) {
       if(card.color) {
-        trick.trickColor === card.color;
+        trick.trickColor = card.color;
       } else if(card.rank === 'Z') {
         trick.trickColor = null;
       }
