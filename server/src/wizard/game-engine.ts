@@ -1,6 +1,6 @@
 import { Deck } from './deck';
 import { Player } from './player';
-import { Trick, Round, GameState, Color, GamePlayAction } from './types';
+import { Trick, Round, GameState, Color, GamePlayAction, Card } from './types';
 
 export class GameEngine {
   private players: Player[];
@@ -107,7 +107,7 @@ export class GameEngine {
     }
   }
 
-  playCard(playerId: string, cardIndex: number) {
+  playCard(playerId: string, card: Card) {
     if(!this.currentRound) throw new Error('Round not found');
     const player = this.players.find(p => p.id === playerId);
     if (!player) throw new Error('Player not found');
@@ -115,12 +115,21 @@ export class GameEngine {
       throw new Error("Not this player's turn");
     }
 
-    const card = player.playCard(cardIndex);
-
-    // TODO: check if card was legal to play
-
-    // get or create current trick
     let trick: Trick = this.currentRound.tricks[this.currentRound.currentTrick];
+
+    // jos kortti on värillinen ja tikki on aloitettu ja sille on määritelty väri ja kortti ei olet tikin väriä tarkistetaan saiko pelata
+    if(card.color && trick && trick.trickColor && card.color !== trick.trickColor) {
+      if(player.hand.findIndex(c => c.color === trick.trickColor) !== -1) {
+        throw new Error('Must follow trick color');
+      }
+    }
+
+    try {
+      player.playCard(card);
+    } catch(e) {
+      throw new Error('Card not in hand');
+    }
+
     if (!trick) {
       trick = { id: this.currentRound.currentTrick, plays: [], trickColor: undefined };
       this.currentRound.tricks[this.currentRound.currentTrick] = trick;

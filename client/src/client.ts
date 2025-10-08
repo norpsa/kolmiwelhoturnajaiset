@@ -1,5 +1,7 @@
 import { io, Socket } from "socket.io-client";
 import readline from "readline";
+// eslint-disable-next-line import/no-relative-parent-imports
+import { GameState } from '../../server/src/wizard/types';
 
 const SERVER_URL = process.env.SERVER_URL || "http://localhost:3000";
 
@@ -8,7 +10,7 @@ type AnyState = unknown; // The server returns whatever GameEngine.getState() pr
 class WizardCliClient {
   private socket!: Socket;
   private rl!: readline.Interface;
-  private lastState: AnyState | null = null;
+  private lastState: GameState | null = null;
   private players: string[] = [];
   private showStates = true;
 
@@ -106,7 +108,10 @@ class WizardCliClient {
           console.log("Usage: play <cardIndex>");
           break;
         }
-        this.socket.emit("playCard", { playerId: this.socket.id, cardIndex });
+        if(!this.lastState) {
+          break;
+        }
+        this.socket.emit("playCard", { playerId: this.socket.id, card: this.lastState.currentHand[cardIndex] });
         console.log(`Sent playCard index=${cardIndex}.`);
         break;
       }

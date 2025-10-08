@@ -14,9 +14,10 @@ export class Player {
     this.hand.push(card);
   }
 
-  playCard(index: number): Card {
-    if (index < 0 || index >= this.hand.length) {
-      throw new Error('Invalid card index');
+  playCard(card: Card): Card {
+    let index = this.hand.findIndex(c => c.color === card.color && c.rank === card.rank);
+    if (index === -1) {
+      throw new Error('Card not in hand');
     }
     return this.hand.splice(index, 1)[0];
   }

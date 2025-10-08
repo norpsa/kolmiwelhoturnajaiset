@@ -62,10 +62,10 @@ io.on('connection', (socket) => {
     broadcastStates();
   });
 
-  socket.on(GamePlayAction.PlayCard, ({ playerId, cardIndex }) => {
+  socket.on(GamePlayAction.PlayCard, ({ playerId, card }) => {
     if (!game) return;
     try {
-      game.playCard(playerId, cardIndex);
+      game.playCard(playerId, card);
       broadcastStates();
     } catch (err: any) {
       socket.emit(GameStateAction.ErrorMessage, err.message);

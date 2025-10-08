@@ -23,7 +23,7 @@ describe("GameEngine.playCard - setting trickColor", () => {
 
   it("should set trickColor to card.color for the first play", () => {
     engine.players[0].hand = [{ rank: 10, color: "humans" }];
-    engine.playCard("p1", 0);
+    engine.playCard("p1", { rank: 10, color: "humans" });
     const trick = engine.currentRound.tricks[0];
     expect(trick.trickColor).toBe("humans");
   });
@@ -31,10 +31,10 @@ describe("GameEngine.playCard - setting trickColor", () => {
   it("should not override trickColor on second play", () => {
     engine.players[0].hand = [{ rank: 10, color: "humans" }];
     engine.players[1].hand = [{ rank: 10, color: "giants" }];
-    engine.playCard("p1", 0);
+    engine.playCard("p1", { rank: 10, color: "humans" });
     engine.playCard = engine.playCard.bind(engine); // ensure context;
 
-    engine.playCard("p2", 0);
+    engine.playCard("p2", { rank: 10, color: "giants" });
 
     const trick = engine.currentRound.tricks[0]
     expect(trick.trickColor).toBe("humans"); // still the first card color
@@ -43,9 +43,9 @@ describe("GameEngine.playCard - setting trickColor", () => {
   it("should set trickColor to null when first card is Zeppo", () => {
     engine.players[0].hand = [{ rank: 'Z'}];
     engine.players[1].hand = [{ rank: 10, color: 'humans'}];
-    engine.playCard("p1", 0);
+    engine.playCard("p1", { rank: 'Z'});
     engine.playCard = engine.playCard.bind(engine); // ensure context;
-    engine.playCard("p2", 0);
+    engine.playCard("p2", { rank: 10, color: 'humans'});
     const trick = engine.currentRound.tricks[0];
     expect(trick.trickColor).toBeNull();
   });
@@ -54,10 +54,10 @@ describe("GameEngine.playCard - setting trickColor", () => {
     engine.players[0].hand = [{ rank: 'N'}];
     engine.players[1].hand = [{ rank: 'N'}];
     engine.players[2].hand = [{ rank: 10, color: 'humans'}];
-    engine.playCard("p1", 0);
+    engine.playCard("p1", { rank: 'N'});
     engine.playCard = engine.playCard.bind(engine); // ensure context;
-    engine.playCard("p2", 0);
-    engine.playCard("p3", 0);
+    engine.playCard("p2", { rank: 'N'});
+    engine.playCard("p3", { rank: 10, color: 'humans'});
     const trick = engine.currentRound.tricks[0];
     expect(trick.trickColor).toBe('humans');
   });
