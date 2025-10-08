@@ -107,6 +107,16 @@ export class GameEngine {
     }
   }
 
+  private isCardAllowedToBePlayed(card: Card, trickColor: Color | null | undefined, hand: Card[]) {
+    if(!card.color) return true;
+
+    if(trickColor && card.color !== trickColor) {
+      if(hand.findIndex(c => c.color === trickColor) !== -1) return false;
+    }
+
+    return true;
+  }
+
   playCard(playerId: string, card: Card) {
     if(!this.currentRound) throw new Error('Round not found');
     const player = this.players.find(p => p.id === playerId);
@@ -117,9 +127,9 @@ export class GameEngine {
 
     let trick: Trick = this.currentRound.tricks[this.currentRound.currentTrick];
 
-    // jos kortti on värillinen ja tikki on aloitettu ja sille on määritelty väri ja kortti ei olet tikin väriä tarkistetaan saiko pelata
-    if(card.color && trick && trick.trickColor && card.color !== trick.trickColor) {
-      if(player.hand.findIndex(c => c.color === trick.trickColor) !== -1) {
+    // jos tikki on aloitettu, tarkistetaan onko kortti laillinen
+    if(trick) {
+      if(!this.isCardAllowedToBePlayed(card, trick.trickColor, player.hand)) {
         throw new Error('Must follow trick color');
       }
     }
