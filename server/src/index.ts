@@ -50,16 +50,23 @@ io.on('connection', (socket) => {
 
   socket.on(GamePlayAction.SetForecast, ({ playerId, bid }) => {
     if (!game) return;
-    console.log(playerId, bid);
-    game.setForecast(playerId, bid);
-    broadcastStates();
+    try {
+      console.log(playerId, bid);
+      game.setForecast(playerId, bid);
+      broadcastStates();
+    } catch (err: any) {
+      socket.emit(GameStateAction.ErrorMessage, err.message);
+    }
   });
 
   socket.on(GamePlayAction.SelectTrump, ({ playerId, color }) => {
     if (!game) return;
-    console.log(playerId, color);
-    game.setTrump(playerId, color);
-    broadcastStates();
+     try {
+      game.setTrump(playerId, color);
+      broadcastStates();
+    } catch (err: any) {
+      socket.emit(GameStateAction.ErrorMessage, err.message);
+    }
   });
 
   socket.on(GamePlayAction.PlayCard, ({ playerId, card }) => {

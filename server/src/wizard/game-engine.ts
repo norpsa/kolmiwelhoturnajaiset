@@ -68,39 +68,42 @@ export class GameEngine {
     };
   }
 
-  setTrump(playerId: string, color: Color) {
+  private ensureRoundPlayerAndCorrectAction(playerId: string, action: GamePlayAction) {
     if(!this.currentRound) throw new Error('Round not found');
     const player = this.players.find(p => p.id === playerId);
     if (!player) throw new Error('Player not found');
     if (player !== this.players[this.currentTurn]) {
       throw new Error("Not this player's turn");
     }
-    this.currentRound.trumpColor = color;
+    if(action !== this.currentAction) {
+      throw new Error('Wrong action');
+    }
+    return player;
+  }
+
+  setTrump(playerId: string, color: Color) {
+    this.ensureRoundPlayerAndCorrectAction(playerId, GamePlayAction.SelectTrump);
+    this.currentRound!.trumpColor = color;
     this.currentAction = GamePlayAction.SetForecast;
-    this.currentTurn = this.currentRound.firstPlayerOfRoundIndex;
+    this.currentTurn = this.currentRound!.firstPlayerOfRoundIndex;
   }
 
   setForecast(playerId: string, bid: number) {
-    if(!this.currentRound) throw new Error('Round not found');
-    const player = this.players.find(p => p.id === playerId);
-    if (!player) throw new Error('Player not found');
-    if (player !== this.players[this.currentTurn]) {
-      throw new Error("Not this player's turn");
-    }
+    this.ensureRoundPlayerAndCorrectAction(playerId, GamePlayAction.SetForecast)
 
     if (bid < 0 || bid > this.roundNumber) {
       throw new Error('Invalid forecast');
     }
-    if (this.currentRound.forecasts.some(f => f.playerId === playerId)) {
+    if (this.currentRound!.forecasts.some(f => f.playerId === playerId)) {
       throw new Error('Forecast already set');
     }
 
     // TODO: estä sopulupaaminen
-    this.currentRound.forecasts.push({ playerId, bid });
+    this.currentRound!.forecasts.push({ playerId, bid });
     this.currentTurn = (this.currentTurn + 1) % this.players.length;
 
     // If everyone has forecasted, trick starts
-    if(this.currentRound.forecasts.length === this.players.length) {
+    if(this.currentRound!.forecasts.length === this.players.length) {
       this.currentAction = GamePlayAction.PlayCard;
     } else {
       this.currentAction = GamePlayAction.SetForecast;
@@ -118,14 +121,9 @@ export class GameEngine {
   }
 
   playCard(playerId: string, card: Card) {
-    if(!this.currentRound) throw new Error('Round not found');
-    const player = this.players.find(p => p.id === playerId);
-    if (!player) throw new Error('Player not found');
-    if (player !== this.players[this.currentTurn]) {
-      throw new Error("Not this player's turn");
-    }
+    const player = this.ensureRoundPlayerAndCorrectAction(playerId, GamePlayAction.PlayCard);
 
-    let trick: Trick = this.currentRound.tricks[this.currentRound.currentTrick];
+    let trick: Trick = this.currentRound!.tricks[this.currentRound!.currentTrick];
 
     // jos tikki on aloitettu, tarkistetaan onko kortti laillinen
     if(trick) {
@@ -141,8 +139,8 @@ export class GameEngine {
     }
 
     if (!trick) {
-      trick = { id: this.currentRound.currentTrick, plays: [], trickColor: undefined };
-      this.currentRound.tricks[this.currentRound.currentTrick] = trick;
+      trick = { id: this.currentRound!.currentTrick, plays: [], trickColor: undefined };
+      this.currentRound!.tricks[this.currentRound!.currentTrick] = trick;
     }
 
     if(trick.trickColor === undefined) {
@@ -160,15 +158,15 @@ export class GameEngine {
 
     // if trick complete
     if (trick.plays.length === this.players.length) {
-      if(!this.currentRound.trumpColor) throw new Error('Round should have trump color defined')
-      trick.winner = this.evaluateTrick(trick, this.currentRound.trumpColor);
-      this.currentRound.tricksWon[trick.winner]++;
+      if(!this.currentRound!.trumpColor) throw new Error('Round should have trump color defined')
+      trick.winner = this.evaluateTrick(trick, this.currentRound!.trumpColor);
+      this.currentRound!.tricksWon[trick.winner]++;
       this.currentTurn = this.players.findIndex(p => p.id === trick.winner)
 
-      this.currentRound.currentTrick++;
+      this.currentRound!.currentTrick++;
 
       // if all tricks done, score round
-      if (this.currentRound.currentTrick >= this.roundNumber) {
+      if (this.currentRound!.currentTrick >= this.roundNumber) {
         this.scoreRound();
         this.roundNumber++;
         if (this.roundNumber <= this.totalRounds) {
