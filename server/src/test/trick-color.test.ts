@@ -6,7 +6,7 @@ describe("GameEngine.playCard - setting trickColor", () => {
   let engine: any;
 
   beforeEach(() => {
-    engine = new GameEngine(["p1", "p2", "p3", "p4"]);
+    engine = new GameEngine([{id: "p1", name: "p1" }, {id: "p2", name: "p2" }, {id: "p3", name: "p3" }, {id: "p4", name: "p4" }]);
 
     engine.currentTurn = 0;
 

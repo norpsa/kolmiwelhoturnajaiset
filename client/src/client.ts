@@ -19,8 +19,7 @@ class WizardCliClient {
 
     this.socket.on("connect", () => {
       console.log(`\nConnected → ${this.socket.id}`);
-      console.log(`Auto-registering as your socket id...`);
-      this.socket.emit("register", this.socket.id);
+      console.log(`Register and give player name with r <n>`)
       this.prompt();
     });
 
@@ -75,7 +74,8 @@ class WizardCliClient {
         break;
       case "register":
       case "r":
-        this.socket.emit("register", this.socket.id);
+        const name = String(args[0]);
+        this.socket.emit("register", name);
         console.log("Sent register with your socket id.");
         break;
       case "start":
@@ -145,7 +145,7 @@ class WizardCliClient {
   private printHelp() {
     console.log(`\nCommands:
   help (h)             Show this help
-  register (r)         Send 'register' with your socket id
+  register (r) <n>     Send 'register' with your socket id and given name
   start (s)            Send 'startGame' (need ≥2 registered players)
   forecast (f) <n>     Send 'setForecast' with bid=n
   trump (t) <c>        Send 'setTrump' with color=c 

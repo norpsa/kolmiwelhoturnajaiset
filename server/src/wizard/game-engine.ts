@@ -1,6 +1,6 @@
 import { Deck } from './deck';
 import { Player } from './player';
-import { Trick, Round, GameState, Color, GamePlayAction, Card } from './types';
+import { Trick, Round, GameState, Color, GamePlayAction, Card, RegisteredPlayer } from './types';
 
 export class GameEngine {
   private players: Player[];
@@ -14,8 +14,8 @@ export class GameEngine {
 
   private currentAction: GamePlayAction | null = null;
 
-  constructor(playerIds: string[]) {
-    this.players = playerIds.map(id => new Player(id));
+  constructor(players: RegisteredPlayer[]) {
+    this.players = players.map(p => new Player(p.id, p.name));
     this.deck = new Deck();
 
     this.players.forEach(p => (this.scores[p.id] = 0));
@@ -236,12 +236,12 @@ export class GameEngine {
     const player = this.players.find(p => p.id === playerId);
     if(!player) throw new Error('Player not found ' + playerId);
 
-    let currentPlayerId = this.players[this.currentTurn].id
+    let currentPlayerName = this.players[this.currentTurn].name;
 
     let action = null;
     if(this.currentAction) {
       action = {
-        playerId: currentPlayerId,
+        playerId: currentPlayerName,
         action: this.currentAction
       }
     }
@@ -251,7 +251,7 @@ export class GameEngine {
       totalRounds: this.totalRounds,
       players: this.players.map(p => p.serialize()),
       currentHand: player.hand,
-      currentTurn: currentPlayerId,
+      currentTurn: currentPlayerName,
       scores: this.scores,
       nextAction: action
     };

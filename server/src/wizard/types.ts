@@ -23,9 +23,15 @@ export interface Card {
 
 export interface SerializedPlayer {
   id: string;
+  name: string;
   tricksTaken: number;
   tricksForecasted: number | null;
   cardsInHand: number;
+}
+
+export interface RegisteredPlayer {
+  id: string;
+  name: string;
 }
 
 export interface Forecast {

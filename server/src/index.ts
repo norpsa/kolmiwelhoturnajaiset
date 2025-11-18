@@ -3,27 +3,27 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import { GameEngine } from './wizard/game-engine';
-import { GamePlayAction, GameStateAction } from './wizard/types';
+import { GamePlayAction, GameStateAction, RegisteredPlayer } from './wizard/types';
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 let game: GameEngine | null = null;
-const registeredPlayers: string[] = []; // socket.id or assigned player IDs
+const registeredPlayers: RegisteredPlayer[] = []; // socket.id or assigned player IDs
 let gameStarted = false;
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
-  socket.on(GameStateAction.Register, (playerId: string) => {
+  socket.on(GameStateAction.Register, (playerName: string) => {
     if (gameStarted) {
       socket.emit(GameStateAction.ErrorMessage, 'Game already started. Cannot register.');
       return;
     }
-    if (!registeredPlayers.includes(socket.id)) {
-      registeredPlayers.push(socket.id);
-      console.log(`Player registered: ${socket.id}`);
+    if (!registeredPlayers.map(a => a.id).includes(socket.id)) {
+      registeredPlayers.push({ id: socket.id, name: playerName });
+      console.log(`Player registered: ${playerName}`);
     }
     io.emit(GameStateAction.PlayersUpdated, registeredPlayers);
   });
@@ -33,7 +33,7 @@ io.on('connection', (socket) => {
       socket.emit(GameStateAction.ErrorMessage, 'Game already started');
       return;
     }
-    if (!registeredPlayers.includes(socket.id)) {
+    if (!registeredPlayers.map(a => a.id).includes(socket.id)) {
       socket.emit(GameStateAction.ErrorMessage, 'You must be registered to start the game');
       return;
     }
@@ -81,7 +81,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
-    const index = registeredPlayers.indexOf(socket.id);
+    const index = registeredPlayers.findIndex(s => s.id === socket.id);
     if (index !== -1) registeredPlayers.splice(index, 1);
     io.emit(GameStateAction.PlayersUpdated, registeredPlayers);
   });
@@ -91,8 +91,8 @@ const broadcastStates = () => {
   if(!game) {
     return;
   }
-  for (const playerId of registeredPlayers) {
-    sendPlayerState(playerId);
+  for (const player of registeredPlayers) {
+    sendPlayerState(player.id);
   }
 }
 
