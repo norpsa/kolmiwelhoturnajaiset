@@ -1,5 +1,6 @@
 import { beforeEach, describe, it, expect } from "vitest";
 import { GameEngine } from "../wizard/game-engine";
+import { GamePlayAction } from "../wizard/types";
 
 describe("GameEngine.playCard - setting trickColor", () => {
   let engine: any;
@@ -8,6 +9,8 @@ describe("GameEngine.playCard - setting trickColor", () => {
     engine = new GameEngine(["p1", "p2", "p3", "p4"]);
 
     engine.currentTurn = 0;
+
+    engine.currentAction = GamePlayAction.PlayCard;
 
     // Mock a round structure
     engine.currentRound = {
