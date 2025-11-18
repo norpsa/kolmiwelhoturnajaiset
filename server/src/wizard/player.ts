@@ -22,6 +22,10 @@ export class Player {
     return this.hand.splice(index, 1)[0];
   }
 
+  setForecast(bid: number): void {
+    this.tricksForecasted = bid;
+  }
+
   serialize(): SerializedPlayer {
     return {
       id: this.id,

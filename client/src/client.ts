@@ -1,7 +1,7 @@
 import { io, Socket } from "socket.io-client";
 import readline from "readline";
+import { GameState } from "./types";
 // eslint-disable-next-line import/no-relative-parent-imports
-import { GameState } from '../../server/src/wizard/types';
 
 const SERVER_URL = process.env.SERVER_URL || "http://localhost:3000";
 
@@ -48,7 +48,7 @@ class WizardCliClient {
       this.prompt();
     });
 
-    this.socket.on("state", (state: AnyState) => {
+    this.socket.on("state", (state: GameState) => {
       this.lastState = state;
       if (this.showStates) {
         console.log("\n[state update]\n" + this.pretty(state));

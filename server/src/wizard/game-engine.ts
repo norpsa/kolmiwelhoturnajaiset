@@ -89,7 +89,7 @@ export class GameEngine {
   }
 
   setForecast(playerId: string, bid: number) {
-    this.ensureRoundPlayerAndCorrectAction(playerId, GamePlayAction.SetForecast)
+    const player = this.ensureRoundPlayerAndCorrectAction(playerId, GamePlayAction.SetForecast)
 
     if (bid < 0 || bid > this.roundNumber) {
       throw new Error('Invalid forecast');
@@ -98,8 +98,15 @@ export class GameEngine {
       throw new Error('Forecast already set');
     }
 
-    // TODO: estä sopulupaaminen
+    if(this.currentRound!.forecasts.length === this.players.length - 1) {
+      let sumOfForecasts = this.currentRound!.forecasts.reduce((a, b) => a + b.bid, 0);
+      if(sumOfForecasts + bid === this.currentRound?.roundNumber) {
+        throw new Error(`Illegal forecast, sum of forecasts can't be even`);
+      }
+    }
+
     this.currentRound!.forecasts.push({ playerId, bid });
+    player.setForecast(bid);
     this.currentTurn = (this.currentTurn + 1) % this.players.length;
 
     // If everyone has forecasted, trick starts
