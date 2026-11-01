@@ -12,6 +12,8 @@ interface GameTable {
   // Once the game has started, bots keep their seat if they disconnect
   players: RegisteredPlayer[];
   game: GameEngine | null;
+  // Set when bots asked for this many players. The game then starts at that count.
+  playerCount: number | null;
   turnTimer?: NodeJS.Timeout;
   lobbyTimer?: NodeJS.Timeout;
   turnStartedAt: number;
@@ -32,6 +34,9 @@ const DEFAULT_EXTRA_TIME_MS = 60000;
 const DEFAULT_LOBBY_WAIT_MS = 5000;
 // Smaller tables can still be started with startGame
 const MIN_PLAYERS_TO_AUTO_START = 4;
+
+const isValidPlayerCount = (count: unknown): count is number =>
+  Number.isInteger(count) && (count as number) >= MIN_PLAYERS && (count as number) <= MAX_PLAYERS;
 
 export const createGameServer = ({
   turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
@@ -58,12 +63,12 @@ export const createGameServer = ({
 
     let bot: Bot | null = null;
 
-    const seatAtOpenTable = (seated: Bot, token?: string) => {
-      // Players wait at the open table. A new one opens when it starts, which happens
-      // at the latest when it fills up.
-      let joined = [...tables].find(t => !t.game);
+    const seatAtOpenTable = (seated: Bot, playerCount: number | null, token?: string) => {
+      // Each count has its own open table. Bots with no count help fill the oldest one.
+      // A table opens a new one by starting, which happens at the latest when it is full.
+      let joined = [...tables].find(t => !t.game && (!playerCount || t.playerCount === playerCount));
       if (!joined) {
-        joined = { id: randomUUID(), players: [], game: null, turnStartedAt: 0, extraTime: new Map() };
+        joined = { id: randomUUID(), players: [], game: null, playerCount, turnStartedAt: 0, extraTime: new Map() };
         tables.add(joined);
       }
 
@@ -74,9 +79,9 @@ export const createGameServer = ({
       sendRegistered(joined, seated, token);
       io.to(joined.id).emit(GameStateAction.PlayersUpdated, joined.players);
 
-      if (joined.players.length === MAX_PLAYERS) {
+      if (joined.players.length === (joined.playerCount ?? MAX_PLAYERS)) {
         startGame(joined);
-      } else if (joined.players.length >= MIN_PLAYERS_TO_AUTO_START && !joined.lobbyTimer) {
+      } else if (!joined.playerCount && joined.players.length >= MIN_PLAYERS_TO_AUTO_START && !joined.lobbyTimer) {
         // Enough to play, so give others a moment to join and then start without anyone asking
         const waiting = joined;
         joined.lobbyTimer = setTimeout(() => startGame(waiting), lobbyWaitMs);
@@ -88,11 +93,25 @@ export const createGameServer = ({
         gameId: table.id,
         botId: registered.id,
         name: registered.name,
+        playerCount: table.playerCount,
         ...(token && { token }),
       });
     };
 
     socket.on(GameStateAction.Register, (payload: unknown) => {
+      const { name, token, playerCount: requestedCount } = (payload ?? {}) as {
+        name?: unknown;
+        token?: unknown;
+        playerCount?: unknown;
+      };
+
+      // Checked first, so that a bad request doesn't claim the name
+      const playerCount = requestedCount ?? null;
+      if (playerCount !== null && !isValidPlayerCount(playerCount)) {
+        socket.emit(GameStateAction.ErrorMessage, `Player count must be ${MIN_PLAYERS}-${MAX_PLAYERS}`);
+        return;
+      }
+
       // A connection that is logged in asks for its next game
       if (bot) {
         const current = botTables.get(bot.id);
@@ -100,11 +119,10 @@ export const createGameServer = ({
           socket.emit(GameStateAction.ErrorMessage, `Already registered to game ${current.id}`);
           return;
         }
-        seatAtOpenTable(bot);
+        seatAtOpenTable(bot, playerCount);
         return;
       }
 
-      const { name, token } = (payload ?? {}) as { name?: unknown; token?: unknown };
       if (!isValidBotName(name)) {
         socket.emit(GameStateAction.ErrorMessage, 'Register needs a name of 1-32 characters');
         return;
@@ -126,7 +144,7 @@ export const createGameServer = ({
 
       const seated = botTables.get(bot.id);
       if (!seated) {
-        seatAtOpenTable(bot, identity.token);
+        seatAtOpenTable(bot, playerCount, identity.token);
         return;
       }
 
@@ -143,6 +161,10 @@ export const createGameServer = ({
       }
       if (table.game) {
         socket.emit(GameStateAction.ErrorMessage, 'Game already started');
+        return;
+      }
+      if (table.playerCount) {
+        socket.emit(GameStateAction.ErrorMessage, `Game starts when it has ${table.playerCount} players`);
         return;
       }
       if (table.players.length < MIN_PLAYERS) {

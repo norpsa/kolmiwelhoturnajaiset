@@ -19,7 +19,7 @@ class WizardCliClient {
 
     this.socket.on("connect", () => {
       console.log(`\nConnected → ${this.socket.id}`);
-      console.log(`Register and give player name with r <n> [token]`)
+      console.log(`Register and give player name with r <n> [token] [playerCount]`)
       this.prompt();
     });
 
@@ -81,10 +81,13 @@ class WizardCliClient {
       case "register":
       case "r":
         if (args.length < 1) {
-          console.log("Usage: register <name> [token]");
+          console.log("Usage: register <name> [token] [playerCount]");
           break;
         }
-        this.socket.emit("register", { name: args[0], token: args[1] });
+        const [name, ...options] = args;
+        const playerCount = options.find(option => /^\d$/.test(option));
+        const token = options.find(option => option !== playerCount);
+        this.socket.emit("register", { name, token, playerCount: playerCount && Number(playerCount) });
         console.log("Sent register.");
         break;
       case "start":
@@ -154,8 +157,9 @@ class WizardCliClient {
   private printHelp() {
     console.log(`\nCommands:
   help (h)             Show this help
-  register (r) <n> [t] Join a game as n. A name you have claimed needs token t
-  start (s)            Send 'startGame' (need 3 players, 6 starts by itself)
+  register (r) <n> [t] [c]  Join a game as n. A claimed name needs token t,
+                       and c asks for a game of c players (3-6)
+  start (s)            Send 'startGame' (need 3 players, not with a chosen count)
   forecast (f) <n>     Send 'setForecast' with bid=n
   trump (t) <c>        Send 'setTrump' with color=c 
   play (p) <i>         Send 'playCard' with cardIndex=i
