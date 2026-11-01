@@ -1,0 +1,17 @@
+{
+  "name": "wizard-bot-template",
+  "version": "1.0.0",
+  "description": "Template for a Wizard card game bot",
+  "type": "module",
+  "main": "bot.js",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}
