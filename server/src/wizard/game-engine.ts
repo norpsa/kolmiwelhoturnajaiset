@@ -144,6 +144,10 @@ export class GameEngine {
   playCard(playerId: string, card: Card) {
     const player = this.ensureRoundPlayerAndCorrectAction(playerId, GamePlayAction.PlayCard);
 
+    if (typeof card !== 'object' || card === null) {
+      throw new Error('Invalid card');
+    }
+
     let trick: Trick = this.currentRound!.tricks[this.currentRound!.currentTrick];
 
     // jos tikki on aloitettu, tarkistetaan onko kortti laillinen

@@ -36,6 +36,11 @@ class WizardCliClient {
       this.prompt();
     });
 
+    this.socket.on("registered", ({ gameId }: { gameId: string }) => {
+      console.log(`\n[registered] game ${gameId}`);
+      this.prompt();
+    });
+
     this.socket.on("playersUpdated", (players: string[]) => {
       this.players = players;
       console.log("\n[playersUpdated]", players);
@@ -145,7 +150,7 @@ class WizardCliClient {
   private printHelp() {
     console.log(`\nCommands:
   help (h)             Show this help
-  register (r) <n>     Send 'register' with your socket id and given name
+  register (r) <n>     Join the open game as n, the server assigns the game
   start (s)            Send 'startGame' (need 3-6 registered players)
   forecast (f) <n>     Send 'setForecast' with bid=n
   trump (t) <c>        Send 'setTrump' with color=c 

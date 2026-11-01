@@ -65,6 +65,7 @@ export enum GamePlayAction {
 
 export enum GameStateAction {
   Register = "register",
+  Registered = "registered",
   StartGame = "startGame",
   State = "state",
   PlayersUpdated = "playersUpdated",
