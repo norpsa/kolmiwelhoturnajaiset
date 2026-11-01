@@ -80,6 +80,7 @@ export interface PlayerGameAction {
 
 export interface GameState {
   round: Round | null;
+  previousRound: Round | null;
   totalRounds: number;
   players: SerializedPlayer[];
   currentTurn: string;

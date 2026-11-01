@@ -164,6 +164,53 @@ describe("player round stats", () => {
   });
 });
 
+describe("previous round", () => {
+  it("is empty during the first round", () => {
+    const engine = new GameEngine(makePlayers(3));
+
+    expect(engine.getState("p0").previousRound).toBeNull();
+  });
+
+  it("shows the whole finished round, including its last trick", () => {
+    const engine: any = new GameEngine(makePlayers(3));
+    const finished = engine.currentRound;
+
+    playRound(engine);
+
+    const { round, previousRound } = engine.getState("p0");
+    expect(round.roundNumber).toBe(2);
+    expect(previousRound).toEqual(finished);
+    expect(previousRound.roundNumber).toBe(1);
+    expect(previousRound.forecasts).toHaveLength(3);
+    expect(previousRound.tricks[0].plays).toHaveLength(3);
+    expect(previousRound.tricks[0].winner).toBeDefined();
+    expect(previousRound.tricksWon[previousRound.tricks[0].winner]).toBe(1);
+  });
+
+  it("always shows the round before the current one", () => {
+    const engine: any = new GameEngine(makePlayers(4));
+
+    for (let finished = 1; finished < engine.totalRounds; finished++) {
+      playRound(engine);
+      const { round, previousRound } = engine.getState("p0");
+      expect(previousRound.roundNumber).toBe(finished);
+      expect(previousRound.tricks).toHaveLength(finished);
+      expect(previousRound.tricks[finished - 1].plays).toHaveLength(4);
+      expect(round.roundNumber).toBe(finished + 1);
+    }
+  });
+
+  it("shows the last round when the game is over", () => {
+    const engine: any = new GameEngine(makePlayers(3));
+    while (engine.roundNumber <= engine.totalRounds) playRound(engine);
+
+    const { gameOver, previousRound } = engine.getState("p0");
+    expect(gameOver).toBe(true);
+    expect(previousRound.roundNumber).toBe(20);
+    expect(previousRound.tricks[19].plays).toHaveLength(3);
+  });
+});
+
 describe("full game", () => {
   it.each([3, 4, 5, 6])("%i players can play whole games by the rules", count => {
     for (let game = 0; game < 50; game++) {

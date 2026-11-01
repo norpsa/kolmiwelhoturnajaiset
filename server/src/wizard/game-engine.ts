@@ -14,6 +14,9 @@ export class GameEngine {
   private totalRounds: number;
   private scores: Record<string, number> = {};
   private currentRound: Round | null = null;
+  // Kept because the next round starts right after the last card of a round is played,
+  // so otherwise players would never see the last trick
+  private previousRound: Round | null = null;
 
   private currentAction: GamePlayAction | null = null;
 
@@ -193,6 +196,7 @@ export class GameEngine {
       // if all tricks done, score round
       if (this.currentRound!.currentTrick >= this.roundNumber) {
         this.scoreRound();
+        this.previousRound = this.currentRound;
         this.roundNumber++;
         if (this.roundNumber <= this.totalRounds) {
           this.startRound();
@@ -298,6 +302,7 @@ export class GameEngine {
 
     return {
       round: this.currentRound,
+      previousRound: this.previousRound,
       totalRounds: this.totalRounds,
       players: this.players.map(p => p.serialize()),
       currentHand: player.hand,

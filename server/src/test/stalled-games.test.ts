@@ -100,6 +100,18 @@ describe("stalled games", () => {
       expect(state.round!.tricks[0].plays).toHaveLength(1);
     });
 
+    it("sends every player the last trick of a round", async () => {
+      await startGame(1);
+
+      const states = clients.map(c => stateMatching(c, s => s.round!.roundNumber === 2));
+
+      for (const { previousRound, players } of await Promise.all(states)) {
+        const plays = previousRound!.tricks[0].plays;
+        expect(plays.map(p => p.playerId).sort()).toEqual(players.map(p => p.id).sort());
+        expect(players.map(p => p.id)).toContain(previousRound!.tricks[0].winner);
+      }
+    });
+
     it("finishes a whole game when nobody answers", async () => {
       await startGame(1);
 
