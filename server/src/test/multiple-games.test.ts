@@ -189,6 +189,60 @@ describe("multiple games", () => {
     expect(gameIds[6]).not.toBe(gameIds[0]);
   });
 
+  it("starts a game by itself when the table is full", async () => {
+    const clients = await connectClients(6);
+    const started = clients.map(c => nextEvent(c, GameStateAction.GameStarted));
+    const states = clients.map(c => nextEvent<GameState>(c, GameStateAction.State));
+
+    await register(clients);
+    await Promise.all(started);
+
+    for (const state of await Promise.all(states)) {
+      expect(state.players).toHaveLength(6);
+      expect(state.totalRounds).toBe(10);
+    }
+  });
+
+  it("tells the last player about the seat before the game starts", async () => {
+    const clients = await connectClients(6);
+    await register(clients.slice(0, 5));
+
+    const events: string[] = [];
+    clients[5].onAny(event => events.push(event));
+    const state = nextEvent(clients[5], GameStateAction.State);
+    clients[5].emit(GameStateAction.Register, "last");
+    await state;
+
+    expect(events).toEqual([
+      GameStateAction.Registered,
+      GameStateAction.PlayersUpdated,
+      GameStateAction.GameStarted,
+      GameStateAction.State,
+    ]);
+  });
+
+  it("doesn't start a game by itself before the table is full", async () => {
+    const clients = await connectClients(5);
+    const onStarted = vi.fn();
+    clients.forEach(c => c.on(GameStateAction.GameStarted, onStarted));
+
+    await register(clients);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(onStarted).not.toHaveBeenCalled();
+
+    await start(clients);
+    expect(onStarted).toHaveBeenCalledTimes(5);
+  });
+
+  it("rejects a manual start of a game that started by itself", async () => {
+    const clients = await connectClients(6);
+    const state = nextEvent(clients[0], GameStateAction.State);
+    await register(clients);
+    await state;
+
+    expect(await expectError(clients[0], GameStateAction.StartGame)).toBe("Game already started");
+  });
+
   it("generates a different id for every game", async () => {
     const clientsA = await connectClients(3);
     const clientsB = await connectClients(3);

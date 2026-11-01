@@ -41,8 +41,9 @@ export const createGameServer = ({ turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS }: Ga
         return;
       }
 
-      // Players wait at the open table. A new one opens when it starts or fills up.
-      let joined = [...tables].find(t => !t.game && t.players.length < MAX_PLAYERS);
+      // Players wait at the open table. A new one opens when it starts, which happens
+      // at the latest when it fills up.
+      let joined = [...tables].find(t => !t.game);
       if (!joined) {
         joined = { id: randomUUID(), players: [], game: null };
         tables.add(joined);
@@ -54,6 +55,8 @@ export const createGameServer = ({ turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS }: Ga
       console.log(`Player registered: ${name} to game ${joined.id}`);
       socket.emit(GameStateAction.Registered, { gameId: joined.id });
       io.to(joined.id).emit(GameStateAction.PlayersUpdated, joined.players);
+
+      if (joined.players.length === MAX_PLAYERS) startGame(joined);
     });
 
     socket.on(GameStateAction.StartGame, () => {
@@ -70,9 +73,7 @@ export const createGameServer = ({ turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS }: Ga
         return;
       }
 
-      table.game = new GameEngine(table.players);
-      io.to(table.id).emit(GameStateAction.GameStarted);
-      startTurn(table);
+      startGame(table);
     });
 
     // Payloads come from bots, so they can't be trusted to have the expected shape.
@@ -123,6 +124,12 @@ export const createGameServer = ({ turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS }: Ga
       if (table.game?.currentPlayerId === socket.id) startTurn(table);
     });
   });
+
+  const startGame = (table: GameTable) => {
+    table.game = new GameEngine(table.players);
+    io.to(table.id).emit(GameStateAction.GameStarted);
+    startTurn(table);
+  };
 
   // Call after every move. Rejected moves don't get here, so they don't buy more time.
   const startTurn = (table: GameTable) => {

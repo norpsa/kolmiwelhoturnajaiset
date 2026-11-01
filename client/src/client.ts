@@ -151,7 +151,7 @@ class WizardCliClient {
     console.log(`\nCommands:
   help (h)             Show this help
   register (r) <n>     Join the open game as n, the server assigns the game
-  start (s)            Send 'startGame' (need 3-6 registered players)
+  start (s)            Send 'startGame' (need 3 players, 6 starts by itself)
   forecast (f) <n>     Send 'setForecast' with bid=n
   trump (t) <c>        Send 'setTrump' with color=c 
   play (p) <i>         Send 'playCard' with cardIndex=i
