@@ -37,7 +37,7 @@ describe("stalled games", () => {
       this.cards[this.cards.length - 4] = trump;
     });
 
-    gameServer = createGameServer({ turnTimeoutMs });
+    gameServer = createGameServer({ turnTimeoutMs, extraTimeMs: 0 });
     await new Promise<void>(resolve => gameServer.server.listen(0, resolve));
     const { port } = gameServer.server.address() as AddressInfo;
 

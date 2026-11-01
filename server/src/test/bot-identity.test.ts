@@ -38,7 +38,7 @@ describe("bot identity", () => {
     });
 
   const startServer = async (options: Parameters<typeof createGameServer>[0] = {}) => {
-    const gameServer = createGameServer({ turnTimeoutMs: NEVER, ...options });
+    const gameServer = createGameServer({ turnTimeoutMs: NEVER, extraTimeMs: 0, ...options });
     servers.push(gameServer);
     await new Promise<void>(resolve => gameServer.server.listen(0, resolve));
     return gameServer;

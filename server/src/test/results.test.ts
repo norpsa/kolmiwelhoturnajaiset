@@ -115,7 +115,7 @@ describe("recording games", () => {
     new Promise<T>(resolve => socket.once(event, resolve));
 
   const startServer = async (options: Parameters<typeof createGameServer>[0]) => {
-    gameServer = createGameServer(options);
+    gameServer = createGameServer({ extraTimeMs: 0, ...options });
     await new Promise<void>(resolve => gameServer.server.listen(0, resolve));
     port = (gameServer.server.address() as AddressInfo).port;
   };

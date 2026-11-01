@@ -14,22 +14,28 @@ interface GameTable {
   game: GameEngine | null;
   turnTimer?: NodeJS.Timeout;
   lobbyTimer?: NodeJS.Timeout;
+  turnStartedAt: number;
+  // What each bot has left of its reserve for the game, used after the turn time ends
+  extraTime: Map<string, number>;
 }
 
 interface GameServerOptions {
   turnTimeoutMs?: number;
+  extraTimeMs?: number;
   lobbyWaitMs?: number;
   botRegistry?: BotRegistry;
   resultStore?: ResultStore;
 }
 
 const DEFAULT_TURN_TIMEOUT_MS = 10000;
+const DEFAULT_EXTRA_TIME_MS = 60000;
 const DEFAULT_LOBBY_WAIT_MS = 5000;
 // Smaller tables can still be started with startGame
 const MIN_PLAYERS_TO_AUTO_START = 4;
 
 export const createGameServer = ({
   turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
+  extraTimeMs = DEFAULT_EXTRA_TIME_MS,
   lobbyWaitMs = DEFAULT_LOBBY_WAIT_MS,
   botRegistry = new BotRegistry(),
   resultStore = new ResultStore(),
@@ -57,7 +63,7 @@ export const createGameServer = ({
       // at the latest when it fills up.
       let joined = [...tables].find(t => !t.game);
       if (!joined) {
-        joined = { id: randomUUID(), players: [], game: null };
+        joined = { id: randomUUID(), players: [], game: null, turnStartedAt: 0, extraTime: new Map() };
         tables.add(joined);
       }
 
@@ -161,6 +167,7 @@ export const createGameServer = ({
             throw new Error('Invalid payload');
           }
           handle(table.game, bot.id, payload);
+          chargeExtraTime(table, bot.id);
           startTurn(table);
         } catch (err: any) {
           socket.emit(GameStateAction.ErrorMessage, err.message);
@@ -206,14 +213,16 @@ export const createGameServer = ({
         return;
       }
 
-      // The last bot to leave is always the current player, so this also plays out
-      // and records a game that everyone has left
-      if (table.game.currentPlayerId === bot.id) startTurn(table);
+      // Otherwise the turn clock keeps running, so that the bot can come back. Everyone
+      // having left plays out here too, and the game gets recorded.
+      const current = table.game.currentPlayerId;
+      if (current && shouldPlayAtOnce(table, current)) startTurn(table);
     });
   });
 
   const startGame = (table: GameTable) => {
     clearTimeout(table.lobbyTimer);
+    table.extraTime = new Map(table.players.map(p => [p.id, extraTimeMs]));
     table.game = new GameEngine(table.players);
     io.to(table.id).emit(GameStateAction.GameStarted);
     startTurn(table);
@@ -224,8 +233,7 @@ export const createGameServer = ({
     clearTimeout(table.turnTimer);
     const game = table.game!;
 
-    // Nobody is going to answer for bots that aren't connected
-    while (game.currentPlayerId && !connectedBots.has(game.currentPlayerId)) {
+    while (game.currentPlayerId && shouldPlayAtOnce(table, game.currentPlayerId)) {
       game.playDefaultMove();
     }
 
@@ -237,13 +245,29 @@ export const createGameServer = ({
       return;
     }
 
+    table.turnStartedAt = Date.now();
     table.turnTimer = setTimeout(() => {
+      table.extraTime.set(playerId, 0);
       game.playDefaultMove();
       connectedBots
         .get(playerId)
         ?.emit(GameStateAction.ErrorMessage, 'Turn timed out, a move was played for you');
       startTurn(table);
-    }, turnTimeoutMs);
+    }, turnTimeoutMs + table.extraTime.get(playerId)!);
+  };
+
+  // A disconnected bot can't come back in time without a reserve, and nobody is coming
+  // back to a table that everyone has left. Waiting for them would only slow the game.
+  const shouldPlayAtOnce = (table: GameTable, playerId: string) => {
+    if (connectedBots.has(playerId)) return false;
+    return table.extraTime.get(playerId) === 0 || !table.players.some(p => connectedBots.has(p.id));
+  };
+
+  const chargeExtraTime = (table: GameTable, botId: string) => {
+    const overTime = Date.now() - table.turnStartedAt - turnTimeoutMs;
+    if (overTime > 0) {
+      table.extraTime.set(botId, Math.max(0, table.extraTime.get(botId)! - overTime));
+    }
   };
 
   // Records the result and frees the bots to register for another game
