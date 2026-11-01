@@ -13,6 +13,7 @@ describe("stalled games", () => {
   let gameServer: ReturnType<typeof createGameServer>;
   let clients: Socket[];
   let latest: Map<Socket, GameState>;
+  let botIds: Map<Socket, string>;
 
   const nextEvent = <T>(socket: Socket, event: string) =>
     new Promise<T>(resolve => socket.once(event, resolve));
@@ -41,14 +42,15 @@ describe("stalled games", () => {
     const { port } = gameServer.server.address() as AddressInfo;
 
     latest = new Map();
+    botIds = new Map();
     clients = [0, 1, 2].map(() => connect(`http://localhost:${port}`, { transports: ["websocket"] }));
     await Promise.all(clients.map(c => nextEvent(c, "connect")));
     clients.forEach(c => c.on(GameStateAction.State, (state: GameState) => latest.set(c, state)));
 
     for (const [i, client] of clients.entries()) {
-      const registered = nextEvent(client, GameStateAction.Registered);
-      client.emit(GameStateAction.Register, `player${i}`);
-      await registered;
+      const registered = nextEvent<{ botId: string }>(client, GameStateAction.Registered);
+      client.emit(GameStateAction.Register, { name: `player${i}` });
+      botIds.set(client, (await registered).botId);
     }
 
     const started = clients.map(c => nextEvent(c, GameStateAction.State));
@@ -78,7 +80,7 @@ describe("stalled games", () => {
       const state = await stateMatching(idle, s => s.round!.forecasts.length === 1);
 
       expect(await error).toBe(TIMED_OUT);
-      expect(state.round!.forecasts).toEqual([{ playerId: idle.id, bid: 0 }]);
+      expect(state.round!.forecasts).toEqual([{ playerId: botIds.get(idle), bid: 0 }]);
       expect(onOtherError).not.toHaveBeenCalled();
     });
 
@@ -117,7 +119,7 @@ describe("stalled games", () => {
       player.emit(GamePlayAction.SetForecast, { bid: 1 });
       const state = await update;
 
-      expect(state.round!.forecasts).toEqual([{ playerId: player.id, bid: 1 }]);
+      expect(state.round!.forecasts).toEqual([{ playerId: botIds.get(player), bid: 1 }]);
       expect(onError).not.toHaveBeenCalled();
     });
 
@@ -172,7 +174,7 @@ describe("stalled games", () => {
       leaver.close();
       const state = await update;
 
-      expect(state.round!.forecasts[0].playerId).not.toBe(stayer.id);
+      expect(state.round!.forecasts[0].playerId).toBe(botIds.get(leaver));
       expect(state.round!.forecasts[0].bid).toBe(0);
     });
 
@@ -182,15 +184,14 @@ describe("stalled games", () => {
       const current = clients[seat];
       const leaver = clients[(seat + 1) % 3];
 
-      const left = nextEvent(current, GameStateAction.PlayersUpdated);
       leaver.close();
-      await left;
+      await vi.waitFor(() => expect(gameServer.connectedBots.size).toBe(2), { interval: 5 });
 
       const update = stateMatching(current, s => s.round!.forecasts.length === 2);
       current.emit(GamePlayAction.SetForecast, { bid: 0 });
       const state = await update;
 
-      expect(state.round!.forecasts[0].playerId).toBe(current.id);
+      expect(state.round!.forecasts[0].playerId).toBe(botIds.get(current));
       expect(state.nextAction!.playerId).toBe(`player${(seat + 2) % 3}`);
     });
 

@@ -11,6 +11,9 @@ describe("clients can only act as themselves", () => {
   let gameServer: ReturnType<typeof createGameServer>;
   let clients: Socket[];
   let states: Map<Socket, GameState>;
+  let botIds: Map<Socket, string>;
+
+  const botId = (socket: Socket) => botIds.get(socket)!;
 
   const nextEvent = <T>(socket: Socket, event: string) =>
     new Promise<T>(resolve => socket.once(event, resolve));
@@ -40,13 +43,11 @@ describe("clients can only act as themselves", () => {
       this.cards[this.cards.length - 1 - NAMES.length] = trump;
     });
 
-    const registered = new Promise<void>(resolve => {
-      clients[0].on(GameStateAction.PlayersUpdated, (players: unknown[]) => {
-        if (players.length === NAMES.length) resolve();
-      });
-    });
-    clients.forEach((client, i) => client.emit(GameStateAction.Register, NAMES[i]));
-    await registered;
+    for (const [i, client] of clients.entries()) {
+      const registered = nextEvent<{ botId: string }>(client, GameStateAction.Registered);
+      client.emit(GameStateAction.Register, { name: NAMES[i] });
+      botIds.set(client, (await registered).botId);
+    }
 
     const started = clients.map(c => nextEvent(c, GameStateAction.State));
     clients[0].emit(GameStateAction.StartGame);
@@ -67,6 +68,7 @@ describe("clients can only act as themselves", () => {
     const { port } = gameServer.server.address() as AddressInfo;
 
     states = new Map();
+    botIds = new Map();
     clients = NAMES.map(() => connect(`http://localhost:${port}`, { transports: ["websocket"] }));
     clients.forEach(client => {
       client.on(GameStateAction.State, (state: GameState) => states.set(client, state));
@@ -86,7 +88,7 @@ describe("clients can only act as themselves", () => {
       const current = currentClient();
 
       const error = await sendRejected(otherClient(current), GamePlayAction.SetForecast, {
-        playerId: current.id,
+        playerId: botId(current),
         bid: 0,
       });
 
@@ -99,11 +101,11 @@ describe("clients can only act as themselves", () => {
       const current = currentClient();
 
       await sendAccepted(current, GamePlayAction.SetForecast, {
-        playerId: otherClient(current).id,
+        playerId: botId(otherClient(current)),
         bid: 0,
       });
 
-      expect(latestState().round!.forecasts).toEqual([{ playerId: current.id, bid: 0 }]);
+      expect(latestState().round!.forecasts).toEqual([{ playerId: botId(current), bid: 0 }]);
     });
   });
 
@@ -113,7 +115,7 @@ describe("clients can only act as themselves", () => {
       const dealer = currentClient();
 
       const error = await sendRejected(otherClient(dealer), GamePlayAction.SelectTrump, {
-        playerId: dealer.id,
+        playerId: botId(dealer),
         color: "elves",
       });
 
@@ -126,7 +128,7 @@ describe("clients can only act as themselves", () => {
       const dealer = currentClient();
 
       await sendAccepted(dealer, GamePlayAction.SelectTrump, {
-        playerId: otherClient(dealer).id,
+        playerId: botId(otherClient(dealer)),
         color: "elves",
       });
 
@@ -141,7 +143,7 @@ describe("clients can only act as themselves", () => {
       const current = currentClient();
 
       const error = await sendRejected(otherClient(current), GamePlayAction.PlayCard, {
-        playerId: current.id,
+        playerId: botId(current),
         card: handOf(current)[0],
       });
 
@@ -157,11 +159,11 @@ describe("clients can only act as themselves", () => {
       const card = handOf(current)[0];
 
       await sendAccepted(current, GamePlayAction.PlayCard, {
-        playerId: otherClient(current).id,
+        playerId: botId(otherClient(current)),
         card,
       });
 
-      expect(latestState().round!.tricks[0].plays).toEqual([{ playerId: current.id, card }]);
+      expect(latestState().round!.tricks[0].plays).toEqual([{ playerId: botId(current), card }]);
     });
   });
 });

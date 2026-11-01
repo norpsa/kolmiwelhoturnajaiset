@@ -42,7 +42,7 @@ describe("malformed payloads", () => {
         if (players.length === NAMES.length) resolve();
       });
     });
-    clients.forEach((client, i) => client.emit(GameStateAction.Register, NAMES[i]));
+    clients.forEach((client, i) => client.emit(GameStateAction.Register, { name: NAMES[i] }));
     await registered;
 
     const started = clients.map(c => nextEvent(c, GameStateAction.State));
@@ -75,7 +75,7 @@ describe("malformed payloads", () => {
     clients[0].emit(action);
 
     const players = nextEvent<unknown[]>(clients[0], GameStateAction.PlayersUpdated);
-    clients[0].emit(GameStateAction.Register, "a");
+    clients[0].emit(GameStateAction.Register, { name: "a" });
     expect(await players).toHaveLength(1);
   });
 

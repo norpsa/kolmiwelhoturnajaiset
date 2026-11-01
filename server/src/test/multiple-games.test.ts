@@ -9,6 +9,7 @@ describe("multiple games", () => {
   let gameServer: ReturnType<typeof createGameServer>;
   let port: number;
   let openClients: Socket[];
+  let botIds: Map<Socket, string>;
 
   const nextEvent = <T>(socket: Socket, event: string) =>
     new Promise<T>(resolve => socket.once(event, resolve));
@@ -22,16 +23,19 @@ describe("multiple games", () => {
     return clients;
   };
 
-  const registerOne = (client: Socket, name: string) => {
-    const registered = nextEvent<{ gameId: string }>(client, GameStateAction.Registered);
-    client.emit(GameStateAction.Register, name);
-    return registered.then(({ gameId }) => gameId);
+  const registerOne = async (client: Socket, name: string) => {
+    const registered = nextEvent<{ gameId: string; botId: string }>(client, GameStateAction.Registered);
+    client.emit(GameStateAction.Register, { name });
+    const { gameId, botId } = await registered;
+    botIds.set(client, botId);
+    return gameId;
   };
 
-  const register = async (clients: Socket[]) => {
+  // Names are unique on the server, so each group of clients needs its own prefix
+  const register = async (clients: Socket[], prefix = "player") => {
     const gameIds: string[] = [];
     for (const [i, client] of clients.entries()) {
-      gameIds.push(await registerOne(client, `player${i}`));
+      gameIds.push(await registerOne(client, `${prefix}${i}`));
     }
     return gameIds;
   };
@@ -81,6 +85,7 @@ describe("multiple games", () => {
   beforeEach(async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     openClients = [];
+    botIds = new Map();
 
     gameServer = createGameServer();
     await new Promise<void>(resolve => gameServer.server.listen(0, resolve));
@@ -98,15 +103,15 @@ describe("multiple games", () => {
     const clientsB = await connectClients(4);
     await register(clientsA);
     const startedA = await start(clientsA);
-    await register(clientsB);
+    await register(clientsB, "b");
     const startedB = await start(clientsB);
 
     // Both games are running before anyone makes a move
     const finishedA = clientsA.map((c, i) => autoPlay(c, `player${i}`, startedA[i]));
-    const finishedB = clientsB.map((c, i) => autoPlay(c, `player${i}`, startedB[i]));
+    const finishedB = clientsB.map((c, i) => autoPlay(c, `b${i}`, startedB[i]));
     const [stateA, stateB] = await Promise.all([Promise.all(finishedA), Promise.all(finishedB)]);
 
-    const idsOf = (clients: Socket[]) => clients.map(c => c.id).sort();
+    const idsOf = (clients: Socket[]) => clients.map(c => botIds.get(c)!).sort();
     expect(stateA[0].totalRounds).toBe(20);
     expect(stateA[0].round!.roundNumber).toBe(20);
     expect(Object.keys(stateA[0].scores).sort()).toEqual(idsOf(clientsA));
@@ -123,7 +128,7 @@ describe("multiple games", () => {
     const clientsB = await connectClients(3);
     await register(clientsA);
     const statesA = await start(clientsA);
-    await register(clientsB);
+    await register(clientsB, "b");
     const statesB = await start(clientsB);
 
     const statesSeenInB = vi.fn();
@@ -133,7 +138,7 @@ describe("multiple games", () => {
     const updatesA = clientsA.map(c => nextEvent<GameState>(c, GameStateAction.State));
     firstInA.emit(GamePlayAction.SetForecast, { bid: 0 });
     const [updatedA] = await Promise.all(updatesA);
-    expect(updatedA.round!.forecasts).toEqual([{ playerId: firstInA.id, bid: 0 }]);
+    expect(updatedA.round!.forecasts).toEqual([{ playerId: botIds.get(firstInA), bid: 0 }]);
 
     // A state leaked from game a would reach game b before the answer to this action
     const firstInB = clientsB[Number(statesB[0].nextAction!.playerId.slice(-1))];
@@ -141,7 +146,7 @@ describe("multiple games", () => {
     firstInB.emit(GamePlayAction.SetForecast, { bid: 0 });
     const [updatedB] = await Promise.all(updatesB);
 
-    expect(updatedB.round!.forecasts).toEqual([{ playerId: firstInB.id, bid: 0 }]);
+    expect(updatedB.round!.forecasts).toEqual([{ playerId: botIds.get(firstInB), bid: 0 }]);
     expect(statesSeenInB).toHaveBeenCalledTimes(3);
   });
 
@@ -157,7 +162,7 @@ describe("multiple games", () => {
     const update = nextEvent<RegisteredPlayer[]>(inB, GameStateAction.PlayersUpdated);
     await registerOne(inB, "other");
 
-    expect(await update).toEqual([{ id: inB.id, name: "other" }]);
+    expect(await update).toEqual([{ id: botIds.get(inB), name: "other" }]);
     expect(listsSeenInA).not.toHaveBeenCalled();
   });
 
@@ -210,7 +215,7 @@ describe("multiple games", () => {
     const events: string[] = [];
     clients[5].onAny(event => events.push(event));
     const state = nextEvent(clients[5], GameStateAction.State);
-    clients[5].emit(GameStateAction.Register, "last");
+    clients[5].emit(GameStateAction.Register, { name: "last" });
     await state;
 
     expect(events).toEqual([
@@ -248,7 +253,7 @@ describe("multiple games", () => {
     const clientsB = await connectClients(3);
     const [gameIdA] = await register(clientsA);
     await start(clientsA);
-    const [gameIdB] = await register(clientsB);
+    const [gameIdB] = await register(clientsB, "b");
 
     expect(gameIdB).not.toBe(gameIdA);
   });
@@ -258,7 +263,7 @@ describe("multiple games", () => {
     const clientsB = await connectClients(2);
     await register(clientsA);
     await start(clientsA);
-    await register(clientsB);
+    await register(clientsB, "b");
 
     expect(await expectError(clientsB[0], GameStateAction.StartGame)).toBe("Need 3-6 players to start");
   });
@@ -267,7 +272,7 @@ describe("multiple games", () => {
     const [client] = await connectClients(1);
     const [gameId] = await register([client]);
 
-    const error = await expectError(client, GameStateAction.Register, "again");
+    const error = await expectError(client, GameStateAction.Register, { name: "again" });
 
     expect(error).toBe(`Already registered to game ${gameId}`);
   });
@@ -303,17 +308,26 @@ describe("multiple games", () => {
       });
     });
     leaves.close();
-    expect(await left).toEqual([{ id: stays.id, name: "player0" }]);
+    expect(await left).toEqual([{ id: botIds.get(stays), name: "player0" }]);
 
     expect(await registerOne(newcomer, "new")).toBe(gameId);
   });
 
-  it.each([[undefined], [null], [5], [""], [{}], [{ name: "a" }]])("rejects registration %j", async payload => {
+  it.each([
+    [undefined],
+    [null],
+    [5],
+    ["a"],
+    [{}],
+    [{ name: "" }],
+    [{ name: 5 }],
+    [{ name: "x".repeat(33) }],
+  ])("rejects registration %j", async payload => {
     const [client] = await connectClients(1);
 
     const error = await expectError(client, GameStateAction.Register, payload);
 
-    expect(error).toBe("Register needs a name");
+    expect(error).toBe("Register needs a name of 1-32 characters");
   });
 
   it("ignores game actions from a connection that isn't in a game", async () => {
