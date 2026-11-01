@@ -203,6 +203,38 @@ export class GameEngine {
     }
   }
 
+  // Whose move the game is waiting for, null when the game is over
+  get currentPlayerId(): string | null {
+    return this.currentAction ? this.players[this.currentTurn].id : null;
+  }
+
+  // Plays a legal move for the current player, who has timed out or left the game
+  playDefaultMove() {
+    const player = this.players[this.currentTurn];
+    const round = this.currentRound!;
+
+    switch (this.currentAction) {
+      case GamePlayAction.SelectTrump:
+        this.setTrump(player.id, colors[0]);
+        break;
+      case GamePlayAction.SetForecast: {
+        const sumOfForecasts = round.forecasts.reduce((sum, f) => sum + f.bid, 0);
+        const isLastForecast = round.forecasts.length === this.players.length - 1;
+        // Zero is illegal only when the earlier forecasts already add up to the tricks
+        this.setForecast(player.id, isLastForecast && sumOfForecasts === round.roundNumber ? 1 : 0);
+        break;
+      }
+      case GamePlayAction.PlayCard: {
+        const trickColor = round.tricks[round.currentTrick]?.trickColor;
+        const card = player.hand.find(c => this.isCardAllowedToBePlayed(c, trickColor, player.hand));
+        this.playCard(player.id, card!);
+        break;
+      }
+      default:
+        throw new Error('Game is over');
+    }
+  }
+
   private evaluateTrick(trick: Trick, trump: Color | null): string {
     let winner = trick.plays[0];
     let winningValue = 0;

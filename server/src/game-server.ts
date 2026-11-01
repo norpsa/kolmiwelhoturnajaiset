@@ -9,9 +9,16 @@ interface GameTable {
   id: string;
   players: RegisteredPlayer[];
   game: GameEngine | null;
+  turnTimer?: NodeJS.Timeout;
 }
 
-export const createGameServer = () => {
+interface GameServerOptions {
+  turnTimeoutMs?: number;
+}
+
+const DEFAULT_TURN_TIMEOUT_MS = 10000;
+
+export const createGameServer = ({ turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS }: GameServerOptions = {}) => {
   const app = express();
   const server = http.createServer(app);
   const io = new Server(server);
@@ -65,7 +72,7 @@ export const createGameServer = () => {
 
       table.game = new GameEngine(table.players);
       io.to(table.id).emit(GameStateAction.GameStarted);
-      broadcastStates(table);
+      startTurn(table);
     });
 
     // Payloads come from bots, so they can't be trusted to have the expected shape.
@@ -81,7 +88,7 @@ export const createGameServer = () => {
             throw new Error('Invalid payload');
           }
           handle(table.game, payload);
-          broadcastStates(table);
+          startTurn(table);
         } catch (err: any) {
           socket.emit(GameStateAction.ErrorMessage, err.message);
         }
@@ -107,12 +114,40 @@ export const createGameServer = () => {
 
       table.players = table.players.filter(p => p.id !== socket.id);
       if (table.players.length === 0) {
+        clearTimeout(table.turnTimer);
         tables.delete(table);
-      } else {
-        io.to(table.id).emit(GameStateAction.PlayersUpdated, table.players);
+        return;
       }
+
+      io.to(table.id).emit(GameStateAction.PlayersUpdated, table.players);
+      if (table.game?.currentPlayerId === socket.id) startTurn(table);
     });
   });
+
+  // Call after every move. Rejected moves don't get here, so they don't buy more time.
+  const startTurn = (table: GameTable) => {
+    clearTimeout(table.turnTimer);
+    const game = table.game!;
+
+    // Nobody is going to answer for players who have left
+    const isConnected = (playerId: string) => table.players.some(p => p.id === playerId);
+    while (game.currentPlayerId && !isConnected(game.currentPlayerId)) {
+      game.playDefaultMove();
+    }
+
+    broadcastStates(table);
+
+    const playerId = game.currentPlayerId;
+    if (!playerId) return;
+
+    table.turnTimer = setTimeout(() => {
+      game.playDefaultMove();
+      io.sockets.sockets
+        .get(playerId)
+        ?.emit(GameStateAction.ErrorMessage, 'Turn timed out, a move was played for you');
+      startTurn(table);
+    }, turnTimeoutMs);
+  };
 
   const broadcastStates = (table: GameTable) => {
     for (const player of table.players) {
