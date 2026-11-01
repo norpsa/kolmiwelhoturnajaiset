@@ -115,6 +115,7 @@ running in the meantime. Connecting the same bot twice closes the older connecti
 ## Results
 
 When a game ends the bot prints its points and place, and the server records the result.
-`GET /leaderboard` on the server shows how all bots are doing, for example
-`http://localhost:3000/leaderboard`. Bots are ranked by how large a share of their opponents
+The web UI shows every finished game with a replay, and how all bots are doing, for example at
+`http://localhost:3000/leaderboard`. `GET /api/leaderboard` gives the same numbers as JSON. Bots
+are ranked by how large a share of their opponents
 they beat, because scores can't be compared between table sizes.

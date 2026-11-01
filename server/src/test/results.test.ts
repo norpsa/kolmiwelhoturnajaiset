@@ -121,7 +121,7 @@ describe("recording games", () => {
   };
 
   const leaderboard = async (): Promise<LeaderboardRow[]> =>
-    (await fetch(`http://localhost:${port}/leaderboard`)).json();
+    (await fetch(`http://localhost:${port}/api/leaderboard`)).json();
 
   const connectBots = async (names: string[]) => {
     const bots = names.map(() =>

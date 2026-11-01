@@ -1,6 +1,17 @@
 import { Deck } from './deck';
 import { Player } from './player';
-import { Trick, Round, GameState, Color, GamePlayAction, Card, RegisteredPlayer, colors } from './types';
+import {
+  Trick,
+  Round,
+  GameState,
+  Color,
+  GamePlayAction,
+  Card,
+  RegisteredPlayer,
+  GameReplay,
+  ReplayEvent,
+  colors,
+} from './types';
 
 export const MIN_PLAYERS = 3;
 export const MAX_PLAYERS = 6;
@@ -19,6 +30,9 @@ export class GameEngine {
   private previousRound: Round | null = null;
 
   private currentAction: GamePlayAction | null = null;
+
+  private replayEvents: ReplayEvent[] = [];
+  private isAutoMove = false;
 
   constructor(players: RegisteredPlayer[]) {
     if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) {
@@ -80,6 +94,16 @@ export class GameEngine {
       trumpColor: trump?.color ?? null,
       firstPlayerOfRoundIndex: firstPlayerIndex
     };
+
+    // Copied, because the hands shrink as the round is played
+    this.replayEvents.push({
+      type: 'roundStart',
+      roundNumber: this.roundNumber,
+      hands: Object.fromEntries(this.players.map(p => [p.id, p.hand.map(card => ({ ...card }))])),
+      trump: trump && { ...trump },
+      trumpColor: this.currentRound.trumpColor ?? null,
+      firstPlayerId: this.players[firstPlayerIndex].id,
+    });
   }
 
   private ensureRoundPlayerAndCorrectAction(playerId: string, action: GamePlayAction) {
@@ -101,6 +125,7 @@ export class GameEngine {
       throw new Error('Invalid trump color');
     }
     this.currentRound!.trumpColor = color;
+    this.replayEvents.push({ type: 'selectTrump', playerId, color, auto: this.isAutoMove });
     this.currentAction = GamePlayAction.SetForecast;
     this.currentTurn = this.currentRound!.firstPlayerOfRoundIndex;
   }
@@ -123,6 +148,7 @@ export class GameEngine {
     }
 
     this.currentRound!.forecasts.push({ playerId, bid });
+    this.replayEvents.push({ type: 'bid', playerId, bid, auto: this.isAutoMove });
     player.setForecast(bid);
     this.currentTurn = (this.currentTurn + 1) % this.players.length;
 
@@ -180,7 +206,13 @@ export class GameEngine {
     }
 
     trick.plays.push({ playerId, card });
-    
+    this.replayEvents.push({
+      type: 'play',
+      playerId,
+      card: { rank: card.rank, ...(card.color && { color: card.color }) },
+      auto: this.isAutoMove,
+    });
+
     // advance turn
     this.currentTurn = (this.currentTurn + 1) % this.players.length;
 
@@ -190,12 +222,18 @@ export class GameEngine {
       this.currentRound!.tricksWon[trick.winner]++;
       this.currentTurn = this.players.findIndex(p => p.id === trick.winner)
       this.players[this.currentTurn].tricksTaken++;
+      this.replayEvents.push({ type: 'trickEnd', winner: trick.winner });
 
       this.currentRound!.currentTrick++;
 
       // if all tricks done, score round
       if (this.currentRound!.currentTrick >= this.roundNumber) {
         this.scoreRound();
+        this.replayEvents.push({
+          type: 'roundEnd',
+          tricksWon: { ...this.currentRound!.tricksWon },
+          scores: { ...this.scores },
+        });
         this.previousRound = this.currentRound;
         this.roundNumber++;
         if (this.roundNumber <= this.totalRounds) {
@@ -217,25 +255,30 @@ export class GameEngine {
     const player = this.players[this.currentTurn];
     const round = this.currentRound!;
 
-    switch (this.currentAction) {
-      case GamePlayAction.SelectTrump:
-        this.setTrump(player.id, colors[0]);
-        break;
-      case GamePlayAction.SetForecast: {
-        const sumOfForecasts = round.forecasts.reduce((sum, f) => sum + f.bid, 0);
-        const isLastForecast = round.forecasts.length === this.players.length - 1;
-        // Zero is illegal only when the earlier forecasts already add up to the tricks
-        this.setForecast(player.id, isLastForecast && sumOfForecasts === round.roundNumber ? 1 : 0);
-        break;
+    this.isAutoMove = true;
+    try {
+      switch (this.currentAction) {
+        case GamePlayAction.SelectTrump:
+          this.setTrump(player.id, colors[0]);
+          break;
+        case GamePlayAction.SetForecast: {
+          const sumOfForecasts = round.forecasts.reduce((sum, f) => sum + f.bid, 0);
+          const isLastForecast = round.forecasts.length === this.players.length - 1;
+          // Zero is illegal only when the earlier forecasts already add up to the tricks
+          this.setForecast(player.id, isLastForecast && sumOfForecasts === round.roundNumber ? 1 : 0);
+          break;
+        }
+        case GamePlayAction.PlayCard: {
+          const trickColor = round.tricks[round.currentTrick]?.trickColor;
+          const card = player.hand.find(c => this.isCardAllowedToBePlayed(c, trickColor, player.hand));
+          this.playCard(player.id, card!);
+          break;
+        }
+        default:
+          throw new Error('Game is over');
       }
-      case GamePlayAction.PlayCard: {
-        const trickColor = round.tricks[round.currentTrick]?.trickColor;
-        const card = player.hand.find(c => this.isCardAllowedToBePlayed(c, trickColor, player.hand));
-        this.playCard(player.id, card!);
-        break;
-      }
-      default:
-        throw new Error('Game is over');
+    } finally {
+      this.isAutoMove = false;
     }
   }
 
@@ -284,6 +327,14 @@ export class GameEngine {
         this.scores[forecast.playerId] -= Math.abs(forecast.bid - actual) * 10;
       }
     }
+  }
+
+  // Shows every hand, so this must not reach anyone before the game is over
+  getReplay(): GameReplay {
+    return {
+      players: this.players.map(p => ({ id: p.id, name: p.name })),
+      events: this.replayEvents,
+    };
   }
 
   getState(playerId: string): GameState {

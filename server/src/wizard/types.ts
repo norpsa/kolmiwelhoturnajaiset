@@ -89,3 +89,25 @@ export interface GameState {
   nextAction: PlayerGameAction | null;
   gameOver: boolean;
 }
+
+// What happened in a game, in order. auto means the server moved for a bot that timed
+// out or left. Results come from the engine, so a viewer needs no rules of its own.
+export type ReplayEvent =
+  | {
+      type: 'roundStart';
+      roundNumber: number;
+      hands: Record<string, Card[]>;
+      trump: Card | null;
+      trumpColor: Color | null;
+      firstPlayerId: string;
+    }
+  | { type: 'selectTrump'; playerId: string; color: Color; auto: boolean }
+  | { type: 'bid'; playerId: string; bid: number; auto: boolean }
+  | { type: 'play'; playerId: string; card: Card; auto: boolean }
+  | { type: 'trickEnd'; winner: string }
+  | { type: 'roundEnd'; tricksWon: Record<string, number>; scores: Record<string, number> };
+
+export interface GameReplay {
+  players: RegisteredPlayer[];
+  events: ReplayEvent[];
+}

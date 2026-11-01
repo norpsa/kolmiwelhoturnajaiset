@@ -50,6 +50,18 @@ export class ResultStore {
     }
   }
 
+  find(gameId: string) {
+    return this.results.find(result => result.gameId === gameId);
+  }
+
+  // Newest first
+  games({ limit, offset, botId }: { limit: number; offset: number; botId?: string }) {
+    const games = this.results
+      .filter(result => !botId || result.players.some(player => player.botId === botId))
+      .reverse();
+    return { total: games.length, games: games.slice(offset, offset + limit) };
+  }
+
   leaderboard(): LeaderboardRow[] {
     const totals = new Map<string, { name: string; games: number; wins: number; performance: number; score: number }>();
 

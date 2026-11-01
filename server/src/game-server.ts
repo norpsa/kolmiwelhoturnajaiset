@@ -1,8 +1,11 @@
 import { randomUUID } from 'crypto';
 import express from 'express';
+import { existsSync } from 'fs';
 import http from 'http';
+import { join, resolve } from 'path';
 import { Server, Socket } from 'socket.io';
 import { Bot, BotRegistry, isValidBotName } from './bot-registry';
+import { ReplayStore } from './replay-store';
 import { ResultStore } from './result-store';
 import { GameEngine, MAX_PLAYERS, MIN_PLAYERS } from './wizard/game-engine';
 import { GamePlayAction, GameStateAction, RegisteredPlayer } from './wizard/types';
@@ -27,7 +30,13 @@ interface GameServerOptions {
   lobbyWaitMs?: number;
   botRegistry?: BotRegistry;
   resultStore?: ResultStore;
+  replayStore?: ReplayStore;
+  webDir?: string;
 }
+
+const DEFAULT_WEB_DIR = resolve(__dirname, '../../web/dist');
+const DEFAULT_GAMES_PER_PAGE = 50;
+const MAX_GAMES_PER_PAGE = 100;
 
 const DEFAULT_TURN_TIMEOUT_MS = 10000;
 const DEFAULT_EXTRA_TIME_MS = 60000;
@@ -38,17 +47,58 @@ const MIN_PLAYERS_TO_AUTO_START = 4;
 const isValidPlayerCount = (count: unknown): count is number =>
   Number.isInteger(count) && (count as number) >= MIN_PLAYERS && (count as number) <= MAX_PLAYERS;
 
+const readNumber = (value: unknown, min: number, fallback: number) => {
+  const number = typeof value === 'string' && value !== '' ? Number(value) : NaN;
+  return Number.isInteger(number) && number >= min ? number : fallback;
+};
+
 export const createGameServer = ({
   turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
   extraTimeMs = DEFAULT_EXTRA_TIME_MS,
   lobbyWaitMs = DEFAULT_LOBBY_WAIT_MS,
   botRegistry = new BotRegistry(),
   resultStore = new ResultStore(),
+  replayStore = new ReplayStore(),
+  webDir = DEFAULT_WEB_DIR,
 }: GameServerOptions = {}) => {
   const app = express();
-  app.get('/leaderboard', (_req, res) => {
+  app.get('/api/leaderboard', (_req, res) => {
     res.json(resultStore.leaderboard());
   });
+
+  app.get('/api/games', (req, res) => {
+    const { limit, offset, botId } = req.query;
+    res.json(
+      resultStore.games({
+        limit: Math.min(readNumber(limit, 1, DEFAULT_GAMES_PER_PAGE), MAX_GAMES_PER_PAGE),
+        offset: readNumber(offset, 0, 0),
+        botId: typeof botId === 'string' ? botId : undefined,
+      })
+    );
+  });
+
+  // Only finished games have a result, so replays of running games can't be asked for.
+  // This also means that only ids made by the server get used as file names.
+  app.get('/api/games/:id', (req, res) => {
+    const result = resultStore.find(req.params.id);
+    if (!result) {
+      res.status(404).json({ error: 'Game not found' });
+      return;
+    }
+    res.json({ result, replay: replayStore.load(result.gameId) });
+  });
+
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+
+  // The pages are routed in the browser, so they all get index.html
+  if (existsSync(webDir)) {
+    app.use(express.static(webDir));
+    app.get('*', (_req, res) => {
+      res.sendFile(join(webDir, 'index.html'));
+    });
+  }
 
   const server = http.createServer(app);
   const io = new Server(server);
@@ -295,6 +345,14 @@ export const createGameServer = ({
   // Records the result and frees the bots to register for another game
   const finishGame = (table: GameTable) => {
     const { scores } = table.game!.getState(table.players[0].id);
+
+    // Separate from the result, which still counts if the replay can't be saved
+    try {
+      replayStore.save(table.id, table.game!.getReplay());
+    } catch (err) {
+      console.error('Saving the replay failed:', err);
+    }
+
     try {
       resultStore.record({
         gameId: table.id,

@@ -1,0 +1,380 @@
+:root {
+  color-scheme: light dark;
+  --background: #f5f6f8;
+  --surface: #ffffff;
+  --text: #1c2026;
+  --muted: #5b6470;
+  --border: #d8dce2;
+  --accent: #5a3fc0;
+  --accent-soft: #ece8fb;
+  --humans: #1f5fbf;
+  --dwarves: #a33a1f;
+  --elves: #1c7a44;
+  --giants: #8a6200;
+  --special: #3a3f47;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #14161a;
+    --surface: #1e2127;
+    --text: #e8eaee;
+    --muted: #a3abb6;
+    --border: #343943;
+    --accent: #b3a2f5;
+    --accent-soft: #2e2850;
+    --humans: #79aef2;
+    --dwarves: #f0957b;
+    --elves: #6fd19a;
+    --giants: #e3bc57;
+    --special: #d5d9df;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.45;
+}
+
+a {
+  color: var(--accent);
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.6rem;
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.25rem 16px 3rem;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.top-bar nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.top-bar nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.top-bar nav a.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.note {
+  margin: 0.25rem 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+th {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scores .winner {
+  font-weight: 600;
+}
+
+.score {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pager {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 3rem;
+  background: var(--surface);
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.card small {
+  font-size: 0.6rem;
+  font-weight: 500;
+}
+
+.card-humans { color: var(--humans); }
+.card-dwarves { color: var(--dwarves); }
+.card-elves { color: var(--elves); }
+.card-giants { color: var(--giants); }
+.card-special { color: var(--special); }
+
+.replay {
+  margin-top: 1rem;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.controls label {
+  font-size: 0.875rem;
+}
+
+button,
+select {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.controls button:not(:disabled) {
+  cursor: pointer;
+}
+
+.controls button:disabled {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  min-height: 3.25rem;
+  margin: 0.75rem 0;
+}
+
+.trump {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.replay-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: 1rem;
+  align-items: start;
+}
+
+.trick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 6rem;
+  padding: 0.75rem;
+  background: var(--accent-soft);
+  border-radius: 8px;
+}
+
+.trick-play {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 6rem;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.trick-play.won small {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.seats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.seat {
+  padding: 0.6rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.seat.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.seat header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.seat strong {
+  overflow-wrap: anywhere;
+}
+
+.seat .score {
+  white-space: nowrap;
+}
+
+.hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-height: 3rem;
+  margin-top: 0.5rem;
+}
+
+.moves {
+  position: relative;
+  max-height: 34rem;
+  margin: 0;
+  padding: 0.25rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.moves button {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  padding: 0.2rem 0.5rem;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.moves .round-start button {
+  margin-top: 0.4rem;
+  font-weight: 600;
+}
+
+.moves li:first-child button {
+  margin-top: 0;
+}
+
+.moves button.current {
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+
+.moves em {
+  color: var(--muted);
+}
+
+.score-table {
+  margin-top: 1rem;
+}
+
+.score-table summary {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 800px) {
+  .replay-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .moves {
+    max-height: 16rem;
+  }
+}
