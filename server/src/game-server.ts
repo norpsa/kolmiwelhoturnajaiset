@@ -3,6 +3,7 @@ import express from 'express';
 import http from 'http';
 import { Server, Socket } from 'socket.io';
 import { Bot, BotRegistry, isValidBotName } from './bot-registry';
+import { ResultStore } from './result-store';
 import { GameEngine, MAX_PLAYERS, MIN_PLAYERS } from './wizard/game-engine';
 import { GamePlayAction, GameStateAction, RegisteredPlayer } from './wizard/types';
 
@@ -12,20 +13,32 @@ interface GameTable {
   players: RegisteredPlayer[];
   game: GameEngine | null;
   turnTimer?: NodeJS.Timeout;
+  lobbyTimer?: NodeJS.Timeout;
 }
 
 interface GameServerOptions {
   turnTimeoutMs?: number;
+  lobbyWaitMs?: number;
   botRegistry?: BotRegistry;
+  resultStore?: ResultStore;
 }
 
 const DEFAULT_TURN_TIMEOUT_MS = 10000;
+const DEFAULT_LOBBY_WAIT_MS = 5000;
+// Smaller tables can still be started with startGame
+const MIN_PLAYERS_TO_AUTO_START = 4;
 
 export const createGameServer = ({
   turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
+  lobbyWaitMs = DEFAULT_LOBBY_WAIT_MS,
   botRegistry = new BotRegistry(),
+  resultStore = new ResultStore(),
 }: GameServerOptions = {}) => {
   const app = express();
+  app.get('/leaderboard', (_req, res) => {
+    res.json(resultStore.leaderboard());
+  });
+
   const server = http.createServer(app);
   const io = new Server(server);
 
@@ -55,7 +68,13 @@ export const createGameServer = ({
       sendRegistered(joined, seated, token);
       io.to(joined.id).emit(GameStateAction.PlayersUpdated, joined.players);
 
-      if (joined.players.length === MAX_PLAYERS) startGame(joined);
+      if (joined.players.length === MAX_PLAYERS) {
+        startGame(joined);
+      } else if (joined.players.length >= MIN_PLAYERS_TO_AUTO_START && !joined.lobbyTimer) {
+        // Enough to play, so give others a moment to join and then start without anyone asking
+        const waiting = joined;
+        joined.lobbyTimer = setTimeout(() => startGame(waiting), lobbyWaitMs);
+      }
     };
 
     const sendRegistered = (table: GameTable, registered: Bot, token?: string) => {
@@ -175,6 +194,10 @@ export const createGameServer = ({
         const leaving = bot.id;
         table.players = table.players.filter(p => p.id !== leaving);
         botTables.delete(leaving);
+        if (table.players.length < MIN_PLAYERS_TO_AUTO_START) {
+          clearTimeout(table.lobbyTimer);
+          table.lobbyTimer = undefined;
+        }
         if (table.players.length > 0) {
           io.to(table.id).emit(GameStateAction.PlayersUpdated, table.players);
         } else {
@@ -183,15 +206,14 @@ export const createGameServer = ({
         return;
       }
 
-      if (!table.players.some(p => connectedBots.has(p.id))) {
-        closeTable(table);
-      } else if (table.game.currentPlayerId === bot.id) {
-        startTurn(table);
-      }
+      // The last bot to leave is always the current player, so this also plays out
+      // and records a game that everyone has left
+      if (table.game.currentPlayerId === bot.id) startTurn(table);
     });
   });
 
   const startGame = (table: GameTable) => {
+    clearTimeout(table.lobbyTimer);
     table.game = new GameEngine(table.players);
     io.to(table.id).emit(GameStateAction.GameStarted);
     startTurn(table);
@@ -211,7 +233,7 @@ export const createGameServer = ({
 
     const playerId = game.currentPlayerId;
     if (!playerId) {
-      closeTable(table);
+      finishGame(table);
       return;
     }
 
@@ -224,9 +246,19 @@ export const createGameServer = ({
     }, turnTimeoutMs);
   };
 
-  // Frees the bots to register for another game
-  const closeTable = (table: GameTable) => {
-    clearTimeout(table.turnTimer);
+  // Records the result and frees the bots to register for another game
+  const finishGame = (table: GameTable) => {
+    const { scores } = table.game!.getState(table.players[0].id);
+    try {
+      resultStore.record({
+        gameId: table.id,
+        finishedAt: new Date().toISOString(),
+        players: table.players.map(p => ({ botId: p.id, name: p.name, score: scores[p.id] })),
+      });
+    } catch (err) {
+      console.error('Saving the result failed:', err);
+    }
+
     table.players.forEach(p => botTables.delete(p.id));
     tables.delete(table);
     io.in(table.id).socketsLeave(table.id);
