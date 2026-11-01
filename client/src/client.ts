@@ -146,7 +146,7 @@ class WizardCliClient {
     console.log(`\nCommands:
   help (h)             Show this help
   register (r) <n>     Send 'register' with your socket id and given name
-  start (s)            Send 'startGame' (need ≥2 registered players)
+  start (s)            Send 'startGame' (need 3-6 registered players)
   forecast (f) <n>     Send 'setForecast' with bid=n
   trump (t) <c>        Send 'setTrump' with color=c 
   play (p) <i>         Send 'playCard' with cardIndex=i

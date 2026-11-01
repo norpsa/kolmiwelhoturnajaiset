@@ -1,6 +1,9 @@
 import { Deck } from './deck';
 import { Player } from './player';
-import { Trick, Round, GameState, Color, GamePlayAction, Card, RegisteredPlayer } from './types';
+import { Trick, Round, GameState, Color, GamePlayAction, Card, RegisteredPlayer, colors } from './types';
+
+export const MIN_PLAYERS = 3;
+export const MAX_PLAYERS = 6;
 
 export class GameEngine {
   private players: Player[];
@@ -8,15 +11,20 @@ export class GameEngine {
   private currentTurn = 0;
 
   private roundNumber = 1;
-  private totalRounds = 10;
+  private totalRounds: number;
   private scores: Record<string, number> = {};
   private currentRound: Round | null = null;
 
   private currentAction: GamePlayAction | null = null;
 
   constructor(players: RegisteredPlayer[]) {
+    if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) {
+      throw new Error(`Game needs ${MIN_PLAYERS}-${MAX_PLAYERS} players`);
+    }
+
     this.players = players.map(p => new Player(p.id, p.name));
     this.deck = new Deck();
+    this.totalRounds = Math.floor(this.deck.cards.length / this.players.length);
 
     this.players.forEach(p => (this.scores[p.id] = 0));
 
@@ -26,6 +34,7 @@ export class GameEngine {
   private startRound() {
     this.deck.reset();
     this.deck.shuffle();
+    this.players.forEach(player => player.resetForRound());
 
     let firstPlayerIndex;
     if(this.roundNumber === 1 || !this.currentRound) {
@@ -42,7 +51,8 @@ export class GameEngine {
       });
     }
 
-    let trump = this.deck.cards ? this.deck.draw() : null;
+    // In the last round every card is dealt, so there is no trump
+    let trump = this.deck.cards.length > 0 ? this.deck.draw() : null;
 
     // If trump card is Z, last player of the round selects trump color
     if(trump && trump.rank === 'Z') {
@@ -63,7 +73,8 @@ export class GameEngine {
         return acc;
       }, {}),
       trump: trump,
-      trumpColor: trump ? trump.color : null,
+      // N as trump card (or no trump card) means the round has no trump
+      trumpColor: trump?.color ?? null,
       firstPlayerOfRoundIndex: firstPlayerIndex
     };
   }
@@ -83,6 +94,9 @@ export class GameEngine {
 
   setTrump(playerId: string, color: Color) {
     this.ensureRoundPlayerAndCorrectAction(playerId, GamePlayAction.SelectTrump);
+    if (!colors.includes(color)) {
+      throw new Error('Invalid trump color');
+    }
     this.currentRound!.trumpColor = color;
     this.currentAction = GamePlayAction.SetForecast;
     this.currentTurn = this.currentRound!.firstPlayerOfRoundIndex;
@@ -91,7 +105,7 @@ export class GameEngine {
   setForecast(playerId: string, bid: number) {
     const player = this.ensureRoundPlayerAndCorrectAction(playerId, GamePlayAction.SetForecast)
 
-    if (bid < 0 || bid > this.roundNumber) {
+    if (!Number.isInteger(bid) || bid < 0 || bid > this.roundNumber) {
       throw new Error('Invalid forecast');
     }
     if (this.currentRound!.forecasts.some(f => f.playerId === playerId)) {
@@ -165,10 +179,10 @@ export class GameEngine {
 
     // if trick complete
     if (trick.plays.length === this.players.length) {
-      if(!this.currentRound!.trumpColor) throw new Error('Round should have trump color defined')
-      trick.winner = this.evaluateTrick(trick, this.currentRound!.trumpColor);
+      trick.winner = this.evaluateTrick(trick, this.currentRound!.trumpColor ?? null);
       this.currentRound!.tricksWon[trick.winner]++;
       this.currentTurn = this.players.findIndex(p => p.id === trick.winner)
+      this.players[this.currentTurn].tricksTaken++;
 
       this.currentRound!.currentTrick++;
 
@@ -179,7 +193,7 @@ export class GameEngine {
         if (this.roundNumber <= this.totalRounds) {
           this.startRound();
         } else {
-          console.log('Game over');
+          this.currentAction = null;
         }
       }
     }
@@ -253,7 +267,8 @@ export class GameEngine {
       currentHand: player.hand,
       currentTurn: currentPlayerName,
       scores: this.scores,
-      nextAction: action
+      nextAction: action,
+      gameOver: this.roundNumber > this.totalRounds
     };
   }
 }

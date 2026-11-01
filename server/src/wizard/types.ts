@@ -85,4 +85,5 @@ export interface GameState {
   scores: Record<string, number>;
   currentHand: Card[];
   nextAction: PlayerGameAction | null;
+  gameOver: boolean;
 }

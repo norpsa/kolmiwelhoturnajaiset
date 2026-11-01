@@ -24,6 +24,11 @@ export class Player {
     return this.hand.splice(index, 1)[0];
   }
 
+  resetForRound(): void {
+    this.tricksTaken = 0;
+    this.tricksForecasted = null;
+  }
+
   setForecast(bid: number): void {
     this.tricksForecasted = bid;
   }

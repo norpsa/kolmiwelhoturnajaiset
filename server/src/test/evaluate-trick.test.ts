@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import { Trick } from "../wizard/types";
 import { GameEngine } from "../wizard/game-engine";
 
+const players = ["p1", "p2", "p3"].map(id => ({ id, name: id }));
+
 describe("evaluateTrick", () => {
   it("Zeppo instantly wins", () => {
-    const engine = new GameEngine(["p1", "p2", "p3"]);
+    const engine = new GameEngine(players);
     const trick: Trick = {
       trickColor: "humans",
       id: 1,
@@ -19,7 +21,7 @@ describe("evaluateTrick", () => {
   });
 
     it("First zeppo wins", () => {
-        const engine = new GameEngine(["p1", "p2", "p3"]);
+        const engine = new GameEngine(players);
         const trick: Trick = {
         trickColor: "humans",
         id: 1,
@@ -34,7 +36,7 @@ describe("evaluateTrick", () => {
     });
 
   it("Highest of trick color wins when no trump", () => {
-    const engine = new GameEngine(["p1", "p2", "p3"]);
+    const engine = new GameEngine(players);
     const trick: Trick = {
       trickColor: "humans",
       id: 1,
@@ -49,7 +51,7 @@ describe("evaluateTrick", () => {
   });
 
   it("Trump beats higher non-trump", () => {
-    const engine = new GameEngine(["p1", "p2", "p3"]);
+    const engine = new GameEngine(players);
     const trick: Trick = {
       trickColor: "humans",
       id: 1,
@@ -64,7 +66,7 @@ describe("evaluateTrick", () => {
   });
 
   it("Higher trump beats lower trump and non trumps", () => {
-    const engine = new GameEngine(["p1", "p2", "p3"]);
+    const engine = new GameEngine(players);
     const trick: Trick = {
       trickColor: "humans",
       id: 1,
@@ -79,7 +81,7 @@ describe("evaluateTrick", () => {
   });
 
   it("Non-trick, non-trump card is ignored", () => {
-    const engine = new GameEngine(["p1", "p2", "p3"]);
+    const engine = new GameEngine(players);
     const trick: Trick = {
       trickColor: "humans",
       id: 1,
@@ -94,7 +96,7 @@ describe("evaluateTrick", () => {
   });
 
   it("First play wins if all others have no valid color", () => {
-    const engine = new GameEngine(["p1", "p2", "p3"]);
+    const engine = new GameEngine(players);
     const trick: Trick = {
       trickColor: "humans",
       id: 1,
@@ -109,7 +111,7 @@ describe("evaluateTrick", () => {
   });
 
   it("Biggest of color wins if no trump", () => {
-    const engine = new GameEngine(["p1", "p2", "p3"]);
+    const engine = new GameEngine(players);
     const trick: Trick = {
       trickColor: "humans",
       id: 1,
@@ -124,7 +126,7 @@ describe("evaluateTrick", () => {
   });
 
   it("If everyone has N, first player wins", () => {
-    const engine = new GameEngine(["p1", "p2", "p3"]);
+    const engine = new GameEngine(players);
     const trick: Trick = {
       trickColor: undefined,
       id: 1,

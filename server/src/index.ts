@@ -2,7 +2,7 @@
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
-import { GameEngine } from './wizard/game-engine';
+import { GameEngine, MAX_PLAYERS, MIN_PLAYERS } from './wizard/game-engine';
 import { GamePlayAction, GameStateAction, RegisteredPlayer } from './wizard/types';
 
 const app = express();
@@ -37,8 +37,8 @@ io.on('connection', (socket) => {
       socket.emit(GameStateAction.ErrorMessage, 'You must be registered to start the game');
       return;
     }
-    if (registeredPlayers.length < 2) {
-      socket.emit(GameStateAction.ErrorMessage, 'Need at least 2 players to start');
+    if (registeredPlayers.length < MIN_PLAYERS || registeredPlayers.length > MAX_PLAYERS) {
+      socket.emit(GameStateAction.ErrorMessage, `Need ${MIN_PLAYERS}-${MAX_PLAYERS} players to start`);
       return;
     }
 
