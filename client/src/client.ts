@@ -90,14 +90,14 @@ class WizardCliClient {
           console.log("Usage: forecast <integer>");
           break;
         }
-        this.socket.emit("setForecast", { playerId: this.socket.id, bid });
+        this.socket.emit("setForecast", { bid });
         console.log(`Sent setForecast bid=${bid}.`);
         break;
       }
       case "trump":
       case "t": {
         const color = String(args[0]);
-        this.socket.emit("selectTrump", { playerId: this.socket.id, color });
+        this.socket.emit("selectTrump", { color });
         console.log(`Sent selectTrump trump=${color}.`);
         break;
       }
@@ -111,7 +111,7 @@ class WizardCliClient {
         if(!this.lastState) {
           break;
         }
-        this.socket.emit("playCard", { playerId: this.socket.id, card: this.lastState.currentHand[cardIndex] });
+        this.socket.emit("playCard", { card: this.lastState.currentHand[cardIndex] });
         console.log(`Sent playCard index=${cardIndex}.`);
         break;
       }
