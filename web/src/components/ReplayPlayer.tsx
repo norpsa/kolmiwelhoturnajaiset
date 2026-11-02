@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildFrames, buildScoreTable, describeEvent, Frame, roundStarts } from '../replay/frames';
+import { buildFrames, buildScoreTable, describeEvent, Frame, roundStarts, totalBid } from '../replay/frames';
 import { GameReplay, RegisteredPlayer } from '../types';
 import { CardView } from './CardView';
 
@@ -27,22 +27,30 @@ const Trick = ({ frame, players }: { frame: Frame; players: RegisteredPlayer[] }
   </section>
 );
 
-const Seat = ({ player, frame }: { player: RegisteredPlayer; frame: Frame }) => (
-  <section className={player.id === frame.nextPlayerId ? 'seat active' : 'seat'} aria-label={player.name}>
-    <header>
-      <strong>{player.name}</strong>
-      <span className="score">{frame.scores[player.id]} points</span>
-    </header>
-    <p className="note">
-      Bid {frame.bids[player.id] ?? '–'}, tricks {frame.tricksWon[player.id]}
-    </p>
-    <div className="hand">
-      {frame.hands[player.id].map((card, index) => (
-        <CardView key={`${card.rank}-${card.color}-${index}`} card={card} />
-      ))}
-    </div>
-  </section>
-);
+const Seat = ({ player, frame }: { player: RegisteredPlayer; frame: Frame }) => {
+  const isFirst = player.id === frame.firstPlayerId;
+  const classes = ['seat', player.id === frame.nextPlayerId && 'active', isFirst && 'first'];
+
+  return (
+    <section className={classes.filter(Boolean).join(' ')} aria-label={player.name}>
+      <header>
+        <span className="seat-name">
+          <strong>{player.name}</strong>
+          {isFirst && <span className="first-badge" title="Bids first and leads the first trick">First</span>}
+        </span>
+        <span className="score">{frame.scores[player.id]} points</span>
+      </header>
+      <p className="note">
+        Bid {frame.bids[player.id] ?? '–'}, tricks {frame.tricksWon[player.id]}
+      </p>
+      <div className="hand">
+        {frame.hands[player.id].map((card, index) => (
+          <CardView key={`${card.rank}-${card.color}-${index}`} card={card} />
+        ))}
+      </div>
+    </section>
+  );
+};
 
 const MoveList = ({ replay, frames, index, onSelect }: {
   replay: GameReplay;
@@ -178,7 +186,10 @@ export const ReplayPlayer = ({ replay }: { replay: GameReplay }) => {
 
       <p className="status" aria-live={playing ? 'off' : 'polite'}>
         <span>Step {index + 1} of {frames.length}: {describeEvent(frame.event, replay.players)}</span>
-        <TrumpInfo frame={frame} />
+        <span className="round-info">
+          <span className="total-bids">Total bids: {totalBid(frame)} · Tricks in round: {frame.roundNumber}</span>
+          <TrumpInfo frame={frame} />
+        </span>
       </p>
 
       <div className="replay-layout">

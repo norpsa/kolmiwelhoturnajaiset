@@ -11,6 +11,7 @@ export interface Frame {
   roundNumber: number;
   trump: Card | null;
   trumpColor: Color | null;
+  firstPlayerId: string | null;
   hands: Record<string, Card[]>;
   bids: Record<string, number>;
   tricksWon: Record<string, number>;
@@ -35,6 +36,7 @@ export const buildFrames = ({ players, events }: GameReplay): Frame[] => {
     roundNumber: 0,
     trump: null,
     trumpColor: null,
+    firstPlayerId: null,
     hands: {},
     bids: {},
     tricksWon: zeros,
@@ -51,6 +53,7 @@ export const buildFrames = ({ players, events }: GameReplay): Frame[] => {
           roundNumber: event.roundNumber,
           trump: event.trump,
           trumpColor: event.trumpColor,
+          firstPlayerId: event.firstPlayerId,
           hands: event.hands,
           bids: {},
           tricksWon: zeros,
@@ -94,6 +97,10 @@ export const buildFrames = ({ players, events }: GameReplay): Frame[] => {
 
   return frames;
 };
+
+// The sum of the bids made so far in the round
+export const totalBid = (frame: Frame) =>
+  Object.values(frame.bids).reduce((total, bid) => total + bid, 0);
 
 // Where each round starts, for jumping to it
 export const roundStarts = (frames: Frame[]) =>

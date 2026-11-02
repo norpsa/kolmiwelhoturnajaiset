@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFrames, buildScoreTable, cardName, describeEvent, roundStarts } from '../replay/frames';
+import { buildFrames, buildScoreTable, cardName, describeEvent, roundStarts, totalBid } from '../replay/frames';
 import { replay } from './fixture';
 
 describe('buildFrames', () => {
@@ -17,6 +17,13 @@ describe('buildFrames', () => {
     expect(first.trump).toEqual({ rank: 'Z' });
     expect(first.trumpColor).toBeNull();
     expect(first.scores).toEqual({ a: 0, b: 0, c: 0 });
+  });
+
+  it('keeps the first player for the whole round', () => {
+    expect(frames[0].firstPlayerId).toBe('b');
+    expect(frames[9].firstPlayerId).toBe('b');
+    expect(frames[10].firstPlayerId).toBe('c');
+    expect(frames.at(-1)!.firstPlayerId).toBe('c');
   });
 
   it('applies the chosen trump', () => {
@@ -88,6 +95,25 @@ describe('buildFrames', () => {
 
   it('handles an empty log', () => {
     expect(buildFrames({ players: replay.players, events: [] })).toEqual([]);
+  });
+});
+
+describe('totalBid', () => {
+  const frames = buildFrames(replay);
+
+  it('adds up the bids as they are made', () => {
+    expect(totalBid(frames[0])).toBe(0);
+    expect(totalBid(frames[2])).toBe(1);
+    expect(totalBid(frames[4])).toBe(2);
+  });
+
+  it('stays through the round', () => {
+    expect(totalBid(frames[9])).toBe(2);
+  });
+
+  it('starts over in the next round', () => {
+    expect(totalBid(frames[10])).toBe(0);
+    expect(totalBid(frames[13])).toBe(3);
   });
 });
 

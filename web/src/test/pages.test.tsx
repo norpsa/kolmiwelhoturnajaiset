@@ -239,6 +239,33 @@ describe('replay page', () => {
     expect(seat('Beta').textContent).toContain('Bid 2, tricks 2');
   });
 
+  it('highlights the first player of the round', async () => {
+    await openReplay();
+
+    // Alpha chooses the trump before Beta starts the round
+    expect(seat('Alpha').className).toContain('active');
+    expect(seat('Alpha').textContent).not.toContain('First');
+    expect(seat('Beta').className).toContain('first');
+    expect(seat('Beta').textContent).toContain('First');
+
+    fireEvent.click(button('Last'));
+
+    expect(seat('Beta').className).not.toContain('first');
+    expect(seat('Gamma').className).toContain('first');
+    expect(document.querySelectorAll('.first-badge')).toHaveLength(1);
+  });
+
+  it('shows the total bids of the round', async () => {
+    await openReplay();
+    expect(status()).toContain('Total bids: 0 · Tricks in round: 1');
+
+    for (let i = 0; i < 4; i++) fireEvent.click(button('Forward'));
+    expect(status()).toContain('Total bids: 2 · Tricks in round: 1');
+
+    fireEvent.click(button('Last'));
+    expect(status()).toContain('Total bids: 3 · Tricks in round: 2');
+  });
+
   it('shows the current trick', async () => {
     await openReplay();
 

@@ -234,6 +234,18 @@ select {
   margin: 0.75rem 0;
 }
 
+.round-info {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.total-bids {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .trump {
   display: inline-flex;
   align-items: center;
@@ -293,6 +305,26 @@ select {
 .seat.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+}
+
+.seat.first {
+  background: var(--accent-soft);
+}
+
+.seat-name {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.first-badge {
+  padding: 0 0.4rem;
+  background: var(--accent);
+  color: var(--surface);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
 }
 
 .seat header {
