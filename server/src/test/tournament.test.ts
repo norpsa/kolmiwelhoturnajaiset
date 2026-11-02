@@ -195,6 +195,25 @@ describe("standings", () => {
       expect(row(t, "a").averageScore).toBe(10);
     });
 
+    it("puts a bot that finished no games behind one that did, whatever its score", () => {
+      const t = tournamentOf(
+        ["a", "b", "c", "d", "e"],
+        4,
+        game({ a: 50, c: 3, d: 2, e: 1 }, "a"),
+        game({ b: -900, c: 3, d: 2, e: 1 })
+      );
+      expect(row(t, "a")).toMatchObject({ averagePoints: 0, wins: 0, averageScore: 0 });
+      expect(row(t, "b")).toMatchObject({ averagePoints: 0, wins: 0, averageScore: -900 });
+      expect(row(t, "b").rank).toBeLessThan(row(t, "a").rank);
+    });
+
+    it("doesn't show internal fields", () => {
+      const [first] = standings(tournamentOf(["a", "b", "c"], 3, game({ a: 3, b: 2, c: 1 })));
+      expect(Object.keys(first).sort()).toEqual(
+        ["averagePoints", "averageScore", "botId", "games", "missed", "name", "points", "rank", "wins"].sort()
+      );
+    });
+
     it("works out a three-way tie where each bot beat one of the others", () => {
       const t = tournamentOf(
         ["a", "b", "c"],

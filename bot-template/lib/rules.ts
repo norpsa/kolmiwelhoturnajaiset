@@ -1,9 +1,10 @@
 // What is legal right now, worked out from the state the server sends.
 // These have to match the checks in the server's game engine.
+import type { Card, Color, MoveState } from './types.ts';
 
-export const colors = ['humans', 'dwarves', 'elves', 'giants'];
+export const colors: readonly Color[] = ['humans', 'dwarves', 'elves', 'giants'];
 
-export function legalBids(state) {
+export function legalBids(state: MoveState): number[] {
   const { roundNumber, forecasts } = state.round;
   const bids = Array.from({ length: roundNumber + 1 }, (_, bid) => bid);
 
@@ -15,7 +16,7 @@ export function legalBids(state) {
   return bids;
 }
 
-export function legalCards(state) {
+export function legalCards(state: MoveState): Card[] {
   const { round, currentHand } = state;
   const trickColor = round.tricks[round.currentTrick]?.trickColor;
   const mustFollow = Boolean(trickColor) && currentHand.some((card) => card.color === trickColor);

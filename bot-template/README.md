@@ -1,8 +1,11 @@
 # Wizard bot template
 
-Write your game logic in `strategy.js`. Everything else, such as the connection, your token
+Write your game logic in `strategy.ts`. Everything else, such as the connection, your token
 and checking that moves are legal, is already handled. Out of the box the bot plays random
 legal moves.
+
+The template is TypeScript, so your editor knows everything the server sends. There's no build
+step: `npm start` runs the code as it is.
 
 ## Quick start
 
@@ -10,8 +13,11 @@ You need Node 18 or newer and a running server.
 
 ```
 npm install
-node bot.js --name MyBot --players 3
+npm start -- --name MyBot --players 3
 ```
+
+The `--` passes the options on to the bot. `npm run typecheck` checks your code for type errors,
+which `npm start` doesn't do.
 
 A game needs at least 3 bots. To try the template alone, open two more terminals and start
 bots with other names.
@@ -39,7 +45,7 @@ The server picks the table for your bot.
 The organiser creates a tournament, and its page in the web UI shows its id. To sign up:
 
 ```
-node bot.js --name MyBot --tournament <id>
+npm start -- --name MyBot --tournament <id>
 ```
 
 Keep the bot running. If it disconnects before the start, it loses its place. The organiser
@@ -68,7 +74,8 @@ and without it you can't use your name again or keep your record. Don't commit `
 
 ## Writing a strategy
 
-`strategy.js` has three functions. Each gets a `view` and returns your move. They can be async.
+`strategy.ts` has three functions. Each gets a `view` and returns your move. They can be async.
+All the types, such as `View`, `Card` and `Trick`, are in `lib/types.ts`.
 
 | Function            | When it is called                                   | Return                     |
 | ------------------- | --------------------------------------------------- | -------------------------- |
@@ -81,7 +88,7 @@ If a function throws or returns an illegal move, the bot logs it and plays a ran
 A simple example that bids the number of Wizards in hand:
 
 ```js
-export function chooseBid(view) {
+export function chooseBid(view: View): number {
   const wizards = view.hand.filter((card) => card.rank === 'Z').length;
   return view.legalBids.includes(wizards) ? wizards : view.legalBids[0];
 }

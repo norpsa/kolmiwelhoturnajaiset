@@ -1,17 +1,23 @@
 {
   "name": "wizard-bot-template",
   "version": "1.0.0",
-  "description": "Template for a Wizard card game bot",
+  "description": "TypeScript template for a Wizard card game bot",
   "type": "module",
-  "main": "bot.js",
+  "main": "bot.ts",
   "private": true,
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "start": "node bot.js"
+    "start": "tsx bot.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
   }
 }

@@ -11,8 +11,8 @@ let chooseMove: (state: GameState, me: RegisteredPlayer, strategy: unknown, warn
 let strategy: Record<string, (view: any) => unknown>;
 
 beforeAll(async () => {
-  ({ chooseMove } = await import(templateFile('lib/turn.js')));
-  strategy = await import(templateFile('strategy.js'));
+  ({ chooseMove } = await import(templateFile('lib/turn.ts')));
+  strategy = await import(templateFile('strategy.ts'));
 });
 
 const seats = (count: number): RegisteredPlayer[] =>

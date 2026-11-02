@@ -143,9 +143,13 @@ export const standings = ({ entrants, schedule, tableSize, absences = [] }: Tour
         wins,
         averagePoints: games ? points / games : 0,
         averageScore: finished ? score / finished : 0,
+        finished,
       };
     })
     .sort((a, b) => b.averagePoints - a.averagePoints || b.wins - a.wins);
+
+  // With no finished games the average score means nothing, so it can't beat a real one
+  const hasScore = (row: (typeof rows)[number]) => Number(row.finished > 0);
 
   const net = new Map<string, number>();
   const ordered: typeof rows = [];
@@ -160,6 +164,7 @@ export const standings = ({ entrants, schedule, tableSize, absences = [] }: Tour
       ...level.sort(
         (a, b) =>
           net.get(b.botId)! - net.get(a.botId)! ||
+          hasScore(b) - hasScore(a) ||
           b.averageScore - a.averageScore ||
           a.name.localeCompare(b.name)
       )
@@ -170,10 +175,11 @@ export const standings = ({ entrants, schedule, tableSize, absences = [] }: Tour
     a.averagePoints === b.averagePoints &&
     a.wins === b.wins &&
     net.get(a.botId) === net.get(b.botId) &&
+    hasScore(a) === hasScore(b) &&
     a.averageScore === b.averageScore;
 
-  return ordered.map(row => ({
-    rank: 1 + ordered.findIndex(other => isLevel(other, row)),
+  return ordered.map(({ finished: _, ...row }, index) => ({
+    rank: 1 + ordered.findIndex(other => isLevel(other, ordered[index])),
     ...row,
     averagePoints: round(row.averagePoints),
     averageScore: round(row.averageScore),

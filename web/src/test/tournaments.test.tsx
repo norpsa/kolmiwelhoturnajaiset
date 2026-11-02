@@ -188,8 +188,8 @@ describe('tournament page', () => {
     mockApi(() => respond(tournament({ status: 'signup', schedule: [] })));
     open('/tournaments/t1');
 
-    expect((await screen.findByText(/node bot.js/)).textContent).toBe(
-      'node bot.js --name MyBot --tournament t1'
+    expect((await screen.findByText(/npm start/)).textContent).toBe(
+      'npm start -- --name MyBot --tournament t1'
     );
     const section = screen.getByRole('region', { name: 'Sign-up' });
     expect(section.textContent).toContain('Bots signed up: 3');
@@ -208,7 +208,7 @@ describe('tournament page', () => {
       return respond(started ? tournament() : tournament({ status: 'signup', schedule: [] }));
     });
     open('/tournaments/t1');
-    await screen.findByText(/node bot.js/);
+    await screen.findByText(/npm start/);
 
     fireEvent.change(screen.getByLabelText('Organiser key'), { target: { value: 'secret' } });
     fireEvent.click(screen.getByRole('button', { name: 'Start the tournament' }));
@@ -226,7 +226,7 @@ describe('tournament page', () => {
         : respond(tournament({ status: 'signup', schedule: [] }))
     );
     open('/tournaments/t1');
-    await screen.findByText(/node bot.js/);
+    await screen.findByText(/npm start/);
 
     fireEvent.change(screen.getByLabelText('Organiser key'), { target: { value: 'secret' } });
     fireEvent.click(screen.getByRole('button', { name: 'Start the tournament' }));
@@ -271,7 +271,7 @@ describe('tournament page', () => {
       return respond(tournament({ status: cancelled ? 'cancelled' : 'signup', schedule: [], absences: [] }));
     });
     open('/tournaments/t1');
-    await screen.findByText(/node bot.js/);
+    await screen.findByText(/npm start/);
 
     const cancel = screen.getByRole('button', { name: 'Cancel the tournament' }) as HTMLButtonElement;
     expect(cancel.disabled).toBe(true);
@@ -291,7 +291,7 @@ describe('tournament page', () => {
       init?.method === 'POST' ? respond({ error: 'no' }, 401) : respond(tournament({ status: 'signup', schedule: [] }))
     );
     open('/tournaments/t1');
-    await screen.findByText(/node bot.js/);
+    await screen.findByText(/npm start/);
 
     fireEvent.change(screen.getByLabelText('Organiser key'), { target: { value: 'wrong' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cancel the tournament' }));

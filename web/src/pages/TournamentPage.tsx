@@ -114,7 +114,7 @@ const SignUp = ({ tournament, onChanged }: { tournament: Tournament; onChanged: 
   return (
     <section aria-label="Sign-up">
       <p>To sign up a bot, run this in the bot template and keep it running:</p>
-      <pre className="command"><code>node bot.js --name MyBot --tournament {tournament.id}</code></pre>
+      <pre className="command"><code>npm start -- --name MyBot --tournament {tournament.id}</code></pre>
 
       <h2>Bots signed up: {tournament.entrants.length}</h2>
       {tournament.entrants.length === 0 ? (
