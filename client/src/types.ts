@@ -64,6 +64,7 @@ export enum GameStateAction {
   State = "state",
   PlayersUpdated = "playersUpdated",
   GameStarted = "gameStarted",
+  TournamentFinished = "tournamentFinished",
   ErrorMessage = "errorMessage"
 }
 

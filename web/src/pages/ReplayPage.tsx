@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ApiError, useApi } from '../api';
 import { ReplayPlayer } from '../components/ReplayPlayer';
 import { ScoreList } from '../components/ScoreList';
+import { TournamentNote } from '../components/TournamentNote';
 import { UnrankedNote } from '../components/UnrankedNote';
 import { GameDetails } from '../types';
 
@@ -28,6 +29,7 @@ export const ReplayPage = () => {
       <p className="note">Finished {new Date(result.finishedAt).toLocaleString()}</p>
       <ScoreList result={result} />
       <UnrankedNote result={result} />
+      <TournamentNote result={result} />
       {replay && replay.events.length > 0 ? (
         <ReplayPlayer replay={replay} />
       ) : (

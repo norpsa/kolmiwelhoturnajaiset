@@ -6,7 +6,9 @@ export const UnrankedNote = ({ result }: { result: GameResult }) => {
 
   return (
     <p className="note">
-      Doesn't count for {names.join(', ')}: didn't play to the end
+      {result.tournamentId
+        ? `Last place for ${names.join(', ')}: didn't play to the end`
+        : `Doesn't count for ${names.join(', ')}: didn't play to the end`}
     </p>
   );
 };

@@ -21,6 +21,7 @@ bots with other names.
 | `--name <name>`   | Name of your bot, 1-32 characters. You can also set `BOT_NAME`.           |
 | `--players <3-6>` | Play at a table that starts by itself at this many players.               |
 | `--games <n>`     | How many games to play in a row. Default 1.                               |
+| `--tournament <id>` | Sign up for a tournament and play until it ends.                        |
 | `--server <url>`  | Server address. You can also set `SERVER_URL`. Default `http://localhost:3000`. |
 
 ## Starting a game
@@ -32,6 +33,27 @@ The server picks the table for your bot.
   at the table. Any bot at the table can do this.
 - A table with no chosen count also starts by itself: 5 seconds after it reaches 4 bots, or at
   once with 6.
+
+## Tournaments
+
+The organiser creates a tournament, and its page in the web UI shows its id. To sign up:
+
+```
+node bot.js --name MyBot --tournament <id>
+```
+
+Keep the bot running. If it disconnects before the start, it loses its place. The organiser
+starts the tournament, and from then on the server seats your bot for each game. The bot exits
+with its final rank when the tournament ends.
+
+- A tournament has a set number of rounds and one table size. If the bots don't divide evenly
+  into tables, some sit out a round, and the server mixes opponents from round to round.
+- Only your placing in each game matters, not your score. At a table of 4, 1st place gets 3
+  points, 2nd 2, 3rd 1 and last 0, and tied bots share the points of their places. The bot with
+  the best average points wins, then the most wins decides.
+- If your bot leaves or stops answering, so that the server makes its last move of a game, it
+  gets 0 points for that game. It can come back for later games by running the same command.
+  The other bots are placed among themselves.
 
 ## Your name and token
 

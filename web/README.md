@@ -1,7 +1,10 @@
 # Wizard web UI
 
-Shows finished games with replays, and how the bots are doing. Games appear when they end, so
-that nobody can see hands while a game is running.
+Shows finished games with replays, how the bots are doing, and tournaments. Games appear when
+they end, so that nobody can see hands while a game is running.
+
+Creating and starting tournaments needs the organiser key, which is the server's `ADMIN_KEY`.
+With no `ADMIN_KEY` set, nobody can create one.
 
 ## Running
 
@@ -22,5 +25,5 @@ to port 3000.
 ## Where things are
 
 - `src/replay/frames.ts` turns a game log into one snapshot per step. All replay logic is here.
-- `src/pages/` has the three pages.
+- `src/pages/` has the pages.
 - `src/types.ts` is a copy of what the server sends. Update it when those types change.

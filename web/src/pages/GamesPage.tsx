@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApi } from '../api';
 import { ScoreList } from '../components/ScoreList';
+import { TournamentNote } from '../components/TournamentNote';
 import { UnrankedNote } from '../components/UnrankedNote';
 import { GameList } from '../types';
 
@@ -54,6 +55,7 @@ export const GamesPage = () => {
                   <td>
                     <ScoreList result={game} />
                     <UnrankedNote result={game} />
+                    <TournamentNote result={game} />
                   </td>
                   <td><Link to={`/games/${game.gameId}`}>Replay</Link></td>
                 </tr>

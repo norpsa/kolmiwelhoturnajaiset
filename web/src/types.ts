@@ -43,6 +43,9 @@ export interface GameResult {
   players: PlayerResult[];
   // Ids of bots that weren't playing at the end, which keeps the game out of the rankings
   didNotFinish?: string[];
+  // Set for games of a tournament
+  tournamentId?: string;
+  round?: number;
 }
 
 export interface GameList {
@@ -53,6 +56,49 @@ export interface GameList {
 export interface GameDetails {
   result: GameResult;
   replay: GameReplay | null;
+}
+
+export type TournamentStatus = 'signup' | 'running' | 'finished' | 'interrupted';
+
+export interface TournamentSummary {
+  id: string;
+  name: string;
+  tableSize: number;
+  rounds: number;
+  status: TournamentStatus;
+  createdAt: string;
+  entrants: number;
+  roundsPlayed: number;
+  winners: string[];
+}
+
+export interface StandingsRow {
+  rank: number;
+  botId: string;
+  name: string;
+  games: number;
+  points: number;
+  averagePoints: number;
+  wins: number;
+}
+
+export interface TournamentTable {
+  // Null until the game has finished
+  gameId: string | null;
+  players: RegisteredPlayer[];
+  result: GameResult | null;
+}
+
+export interface Tournament {
+  id: string;
+  name: string;
+  tableSize: number;
+  rounds: number;
+  status: TournamentStatus;
+  createdAt: string;
+  entrants: RegisteredPlayer[];
+  schedule: TournamentTable[][];
+  standings: StandingsRow[];
 }
 
 export interface LeaderboardRow {

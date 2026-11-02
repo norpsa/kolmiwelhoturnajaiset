@@ -21,11 +21,21 @@ const legalMove = ({ round, currentHand, players, nextAction }: GameState): [Gam
 };
 
 // Makes a bot play for real, so that its moves aren't made by the server.
-// skip decides whether to leave a turn unanswered.
+// skip decides whether to leave a turn unanswered. The returned function answers the
+// latest state again, to go on after skipping.
 export const playLegally = (bot: Socket, name: string, skip: () => boolean = () => false) => {
-  bot.on(GameStateAction.State, (state: GameState) => {
-    if (state.nextAction?.playerId !== name || skip()) return;
-    const [action, payload] = legalMove(state);
+  let latest: GameState | null = null;
+
+  const answer = () => {
+    if (latest?.nextAction?.playerId !== name || skip()) return;
+    const [action, payload] = legalMove(latest);
     bot.emit(action, payload);
+  };
+
+  bot.on(GameStateAction.State, (state: GameState) => {
+    latest = state;
+    answer();
   });
+
+  return answer;
 };

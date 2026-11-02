@@ -13,6 +13,7 @@ const USAGE = `Usage: node bot.js --name <name> [options]
   --name <name>     Name of your bot, or set BOT_NAME
   --players <3-6>   Play at a table that starts by itself at this many players
   --games <n>       How many games to play in a row (default 1)
+  --tournament <id> Sign up for a tournament and play until it ends
   --server <url>    Server address, or set SERVER_URL (default http://localhost:3000)`;
 
 const fail = (message) => {
@@ -27,7 +28,8 @@ const readOptions = () => {
       options: {
         name: { type: 'string', default: process.env.BOT_NAME },
         players: { type: 'string' },
-        games: { type: 'string', default: '1' },
+        games: { type: 'string' },
+        tournament: { type: 'string' },
         server: { type: 'string', default: process.env.SERVER_URL || 'http://localhost:3000' },
       },
     }));
@@ -35,9 +37,12 @@ const readOptions = () => {
     fail(`${err.message}\n\n${USAGE}`);
   }
 
-  const games = Number(values.games);
+  const games = Number(values.games ?? 1);
   if (!values.name) fail(USAGE);
   if (!Number.isInteger(games) || games < 1) fail(`--games must be a positive number\n\n${USAGE}`);
+  if (values.tournament && (values.games !== undefined || values.players !== undefined)) {
+    fail(`--tournament can't be combined with --games or --players\n\n${USAGE}`);
+  }
 
   // The server checks the range of the player count
   return { ...values, games, players: values.players === undefined ? undefined : Number(values.players) };
@@ -73,14 +78,19 @@ const socket = io(options.server, { transports: ['websocket'] });
 
 let me = null;
 let gamesPlayed = 0;
+// Set by the server, which also keeps a bot in its tournament after a restart
+let tournamentId = options.tournament;
+let waitingForAnswer = false;
 // Moves are answers to one state. A newer state means the server has moved on.
 let latestState = 0;
 
 const register = () => {
+  waitingForAnswer = true;
   socket.emit('register', {
     name: options.name,
     token: loadToken(options.name),
     playerCount: options.players,
+    tournamentId,
   });
 };
 
@@ -88,7 +98,11 @@ const finishGame = (state) => {
   gamesPlayed++;
   const score = state.scores[me.id];
   const place = 1 + Object.values(state.scores).filter((other) => other > score).length;
-  console.log(`Game ${gamesPlayed}/${options.games} over: ${score} points, place ${place}/${state.players.length}`);
+  const progress = tournamentId ? gamesPlayed : `${gamesPlayed}/${options.games}`;
+  console.log(`Game ${progress} over: ${score} points, place ${place}/${state.players.length}`);
+
+  // In a tournament the server seats the bot for each game
+  if (tournamentId) return;
 
   if (gamesPlayed < options.games) {
     register();
@@ -126,11 +140,22 @@ socket.on('disconnect', (reason) => {
   console.log(`Disconnected: ${reason}`);
 });
 
-socket.on('registered', ({ gameId, botId, name, playerCount, token }) => {
+socket.on('registered', ({ gameId, botId, name, playerCount, token, tournamentId: joined }) => {
   me = { id: botId, name };
+  tournamentId = joined;
+  waitingForAnswer = false;
   if (token) saveToken(name, token);
-  console.log(`Joined game ${gameId} as ${name}`);
+
+  if (gameId) console.log(`Joined game ${gameId} as ${name}`);
+  else console.log(`In tournament ${joined} as ${name}, waiting for the next game`);
+
   if (!playerCount && process.stdin.isTTY) console.log('Press Enter to start the game');
+});
+
+socket.on('tournamentFinished', ({ rank, bots }) => {
+  console.log(`Tournament over: rank ${rank}/${bots}`);
+  socket.close();
+  process.exit(0);
 });
 
 socket.on('playersUpdated', (players) => {
@@ -144,12 +169,12 @@ socket.on('state', (state) => {
 });
 
 socket.on('errorMessage', (message) => {
-  // Before the first registration this means the bot can't play, for example a taken name
-  if (!me) fail(`Server refused: ${message}`);
+  // The bot can't play, for example because of a taken name or a tournament that has ended
+  if (waitingForAnswer) fail(`Server refused: ${message}`);
   console.error(`Server: ${message}`);
 });
 
-if (options.players === undefined && process.stdin.isTTY) {
+if (options.players === undefined && !options.tournament && process.stdin.isTTY) {
   readline
     .createInterface({ input: process.stdin })
     .on('line', () => socket.emit('startGame'));

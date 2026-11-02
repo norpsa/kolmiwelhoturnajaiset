@@ -15,6 +15,9 @@ export interface GameResult {
   // others are compared only with each other. Missing from results recorded before this
   // was tracked.
   didNotFinish?: string[];
+  // Set for games of a tournament
+  tournamentId?: string;
+  round?: number;
 }
 
 export interface LeaderboardRow {
