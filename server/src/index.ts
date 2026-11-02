@@ -9,6 +9,7 @@ const turnTimeoutMs = Number(process.env.TURN_TIMEOUT_MS) || undefined;
 const botRegistry = new BotRegistry(process.env.BOTS_FILE || 'data/bots.json');
 const extraTimeMs = process.env.EXTRA_TIME_MS ? Number(process.env.EXTRA_TIME_MS) : undefined;
 const lobbyWaitMs = Number(process.env.LOBBY_WAIT_MS) || undefined;
+const roundWaitMs = process.env.ROUND_WAIT_MS ? Number(process.env.ROUND_WAIT_MS) : undefined;
 const resultStore = new ResultStore(process.env.RESULTS_FILE || 'data/results.jsonl');
 const replayStore = new ReplayStore(process.env.REPLAYS_DIR || 'data/replays');
 const tournamentStore = new TournamentStore(process.env.TOURNAMENTS_DIR || 'data/tournaments');
@@ -17,6 +18,7 @@ const { server } = createGameServer({
   turnTimeoutMs,
   extraTimeMs,
   lobbyWaitMs,
+  roundWaitMs,
   botRegistry,
   resultStore,
   replayStore,

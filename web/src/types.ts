@@ -58,7 +58,7 @@ export interface GameDetails {
   replay: GameReplay | null;
 }
 
-export type TournamentStatus = 'signup' | 'running' | 'finished' | 'interrupted';
+export type TournamentStatus = 'signup' | 'running' | 'finished' | 'interrupted' | 'cancelled';
 
 export interface TournamentSummary {
   id: string;
@@ -77,9 +77,11 @@ export interface StandingsRow {
   botId: string;
   name: string;
   games: number;
+  missed: number;
   points: number;
   averagePoints: number;
   wins: number;
+  averageScore: number;
 }
 
 export interface TournamentTable {
@@ -98,6 +100,8 @@ export interface Tournament {
   createdAt: string;
   entrants: RegisteredPlayer[];
   schedule: TournamentTable[][];
+  // Bots that missed each round. Missing from older tournaments.
+  absences?: RegisteredPlayer[][];
   standings: StandingsRow[];
 }
 

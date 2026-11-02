@@ -50,10 +50,13 @@ with its final rank when the tournament ends.
   into tables, some sit out a round, and the server mixes opponents from round to round.
 - Only your placing in each game matters, not your score. At a table of 4, 1st place gets 3
   points, 2nd 2, 3rd 1 and last 0, and tied bots share the points of their places. The bot with
-  the best average points wins, then the most wins decides.
+  the best average points wins. Ties go to the most wins, then to who placed ahead when the tied
+  bots met, and last to the average game score.
 - If your bot leaves or stops answering, so that the server makes its last move of a game, it
-  gets 0 points for that game. It can come back for later games by running the same command.
-  The other bots are placed among themselves.
+  gets 0 points for that game. The other bots are placed among themselves.
+- If your bot has just lost its connection, the server waits up to 5 seconds for it before
+  drawing the next round. A bot that doesn't make it back misses the round, which counts as a game
+  worth 0 points. Run the same command to come back for a later round.
 
 ## Your name and token
 

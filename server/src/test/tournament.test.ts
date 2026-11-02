@@ -128,6 +128,122 @@ describe("standings", () => {
     expect(standings(t).map(r => r.rank)).toEqual([1, 1, 3]);
   });
 
+  describe("tie-breaks", () => {
+    // In all of these a and b are level on average and wins
+    it("goes to who placed ahead when the level bots met", () => {
+      const level = tournamentOf(
+        ["a", "b", "c"],
+        3,
+        game({ a: 1, b: 9, c: 0 }),
+        game({ a: 9, c: 8, b: 0 }),
+        game({ a: 3, b: 5, c: 9 })
+      );
+      expect(row(level, "a")).toMatchObject({ points: 3, wins: 1 });
+      expect(row(level, "b")).toMatchObject({ points: 3, wins: 1 });
+      expect(standings(level).map(r => r.botId).indexOf("b")).toBeLessThan(
+        standings(level).map(r => r.botId).indexOf("a")
+      );
+      expect(row(level, "a").rank).toBe(row(level, "b").rank + 1);
+    });
+
+    it("ignores games where only one of the level bots played", () => {
+      // a placed ahead of b the one time they met, and b's big scores elsewhere don't matter
+      const t = tournamentOf(
+        ["a", "b", "c", "d"],
+        3,
+        game({ a: 2, b: 1, c: 3 }),
+        game({ b: 300, c: 2, d: 1 }),
+        game({ a: 3, c: 2, d: 1 }),
+        game({ c: 300, b: 200, d: 1 }),
+        game({ c: 3, d: 2, a: 0 })
+      );
+      expect(row(t, "a").averagePoints).toBe(row(t, "b").averagePoints);
+      expect(row(t, "a").wins).toBe(row(t, "b").wins);
+      expect(row(t, "a").rank).toBeLessThan(row(t, "b").rank);
+    });
+
+    it("treats a bot that left a game as behind in that game", () => {
+      const t = tournamentOf(
+        ["a", "b", "c", "d"],
+        3,
+        game({ a: 900, b: 1, c: 0 }, "a"),
+        game({ a: 9, c: 1, d: 0 }),
+        game({ c: 2, d: 1, b: 0 })
+      );
+      expect(row(t, "a").averagePoints).toBe(row(t, "b").averagePoints);
+      expect(row(t, "a").wins).toBe(row(t, "b").wins);
+      expect(row(t, "a").averageScore).toBeGreaterThan(row(t, "b").averageScore);
+      expect(row(t, "b").rank).toBeLessThan(row(t, "a").rank);
+    });
+
+    it("falls back on the average game score when they split their meetings", () => {
+      const t = tournamentOf(["a", "b", "c"], 3, game({ a: 90, b: 20, c: 1 }), game({ a: 10, b: 30, c: 1 }));
+      expect(row(t, "a").averagePoints).toBe(row(t, "b").averagePoints);
+      expect(row(t, "a")).toMatchObject({ rank: 1, averageScore: 50 });
+      expect(row(t, "b")).toMatchObject({ rank: 2, averageScore: 25 });
+    });
+
+    it("doesn't let score decide before placings do", () => {
+      const t = tournamentOf(["a", "b", "c"], 3, game({ a: 2, b: 1, c: 0 }), game({ a: 2, b: 1, c: 0 }));
+      expect(standings(t).map(r => r.botId)).toEqual(["a", "b", "c"]);
+      const big = tournamentOf(["a", "b", "c"], 3, game({ a: 2, b: 1, c: 0 }), game({ a: 1, b: 2000, c: 0 }), game({ a: 3, b: 2, c: 0 }));
+      expect(row(big, "a").rank).toBe(1);
+    });
+
+    it("leaves out games a bot didn't finish from its average score", () => {
+      const t = tournamentOf(["a", "b", "c"], 3, game({ a: 900, b: 2, c: 1 }, "a"), game({ a: 10, b: 2, c: 1 }));
+      expect(row(t, "a").averageScore).toBe(10);
+    });
+
+    it("works out a three-way tie where each bot beat one of the others", () => {
+      const t = tournamentOf(
+        ["a", "b", "c"],
+        3,
+        game({ a: 30, b: 2, c: 1 }),
+        game({ b: 3, c: 2, a: 1 }),
+        game({ c: 3, a: 2, b: 1 })
+      );
+      expect(standings(t).map(r => r.averagePoints)).toEqual([1, 1, 1]);
+      expect(standings(t).map(r => r.botId)).toEqual(["a", "b", "c"]);
+      expect(standings(t).map(r => r.rank)).toEqual([1, 2, 2]);
+    });
+
+    it("leaves bots level on everything sharing a rank", () => {
+      const t = tournamentOf(
+        ["a", "b", "c"],
+        3,
+        game({ a: 3, b: 2, c: 1 }),
+        game({ b: 3, c: 2, a: 1 }),
+        game({ c: 3, a: 2, b: 1 })
+      );
+      expect(standings(t).map(r => r.rank)).toEqual([1, 1, 1]);
+    });
+  });
+
+  describe("missed rounds", () => {
+    const withAbsences = (t: Tournament, ...absent: string[][]) => ({
+      ...t,
+      absences: absent.map(ids => ids.map(id => ({ id, name: id }))),
+    });
+
+    it("count as games worth 0 points", () => {
+      const t = withAbsences(tournamentOf(["a", "b", "c"], 3, game({ a: 3, b: 2, c: 1 })), [], ["a"], ["a"]);
+      expect(row(t, "a")).toMatchObject({ games: 3, missed: 2, points: 2, averagePoints: 0.667 });
+    });
+
+    it("stop a leader from protecting its average by leaving", () => {
+      const played = [game({ a: 3, b: 2, c: 1 }), game({ a: 3, b: 2, c: 1 })];
+      const t = withAbsences(tournamentOf(["a", "b", "c"], 3, ...played), [], [], ["a"], ["a"], ["a"]);
+      expect(standings(t)[0].botId).toBe("b");
+    });
+
+    it("copes with tournaments saved before absences existed", () => {
+      const t = tournamentOf(["a", "b", "c"], 3, game({ a: 3, b: 2, c: 1 }));
+      delete t.absences;
+      expect(row(t, "a")).toMatchObject({ games: 1, missed: 0 });
+    });
+  });
+
   it("counts a game a bot didn't finish as played", () => {
     const t = tournamentOf(["a", "b", "c"], 3, game({ a: 900, b: 2, c: 1 }, "a"));
     expect(row(t, "a")).toMatchObject({ games: 1, points: 0, wins: 0 });
@@ -312,7 +428,14 @@ describe("tournaments on the server", () => {
 
   const startServer = async (options: Parameters<typeof createGameServer>[0] = {}) => {
     resultStore = new ResultStore();
-    gameServer = createGameServer({ turnTimeoutMs: NEVER, extraTimeMs: 0, adminKey: KEY, resultStore, ...options });
+    gameServer = createGameServer({
+      turnTimeoutMs: NEVER,
+      extraTimeMs: 0,
+      roundWaitMs: 0,
+      adminKey: KEY,
+      resultStore,
+      ...options,
+    });
     await new Promise<void>(resolve => gameServer.server.listen(0, resolve));
     port = (gameServer.server.address() as AddressInfo).port;
   };
@@ -687,7 +810,50 @@ describe("tournaments on the server", () => {
       expect((await getJson(`/api/tournaments/${id}`)).entrants).toHaveLength(4);
     });
 
-    it("doesn't hide a table from a bot that was away when it started", async () => {
+    it("leaves a bot that is gone out of the next rounds, for 0 points each", async () => {
+      await startServer();
+      const id = await createTournament(3, 3);
+      const bots = await signUpAll(["a", "b", "c", "d"], id);
+
+      let playing = false;
+      const answers = bots.map(bot => playLegally(bot.socket, bot.name, () => !playing));
+      const received = new Set<string>();
+      bots.forEach(bot => bot.socket.once(GameStateAction.State, () => received.add(bot.name)));
+      await post(`/api/tournaments/${id}/start`);
+      await vi.waitFor(() => expect(received.size).toBe(3));
+
+      const seated = [...gameServer.tables][0].players.map(p => p.name);
+      const gone = bots.find(bot => seated.includes(bot.name))!;
+      gone.socket.close();
+      await vi.waitFor(() => expect(gameServer.connectedBots.size).toBe(3));
+      playing = true;
+      answers.forEach(answer => answer());
+
+      const tournament = await finished(id);
+      const names = (round: number) => tournament.schedule[round].flatMap((t: any) => t.players.map((p: any) => p.name));
+      expect(names(1)).not.toContain(gone.name);
+      expect(names(2)).not.toContain(gone.name);
+      expect(tournament.absences.map((bots: any[]) => bots.map(b => b.name))).toEqual([[], [gone.name], [gone.name]]);
+      expect(tournament.standings.find((r: any) => r.name === gone.name)).toMatchObject({ games: 3, missed: 2, points: 0 });
+    }, 15000);
+
+    it("seats a gone bot only if a table can't be filled without it", async () => {
+      await startServer();
+      const id = await createTournament(3, 3);
+      const bots = await signUpAll(["a", "b", "c"], id);
+      playLegally(bots[1].socket, "b");
+      playLegally(bots[2].socket, "c");
+
+      await post(`/api/tournaments/${id}/start`);
+      bots[0].socket.close();
+
+      const tournament = await finished(id);
+      expect(tournament.schedule).toHaveLength(3);
+      expect(tournament.absences.flat()).toEqual([]);
+      expect(tournament.standings.find((r: any) => r.name === "a")).toMatchObject({ games: 3, points: 0 });
+    }, 15000);
+
+    it("seats a bot again once it comes back", async () => {
       await startServer({ extraTimeMs: NEVER });
       const id = await createTournament(3, 2);
       const bots = await signUpAll(["a", "b", "c", "d"], id);
@@ -705,7 +871,12 @@ describe("tournaments on the server", () => {
       waiting.socket.close();
       await vi.waitFor(() => expect(gameServer.connectedBots.size).toBe(3));
 
-      // The bot that sat out is seated in the next round while it is away
+      // Back before the first round ends, so it counts as here when the next one is drawn
+      const back = await newSocket();
+      const registered = nextEvent<any>(back, GameStateAction.Registered);
+      back.emit(GameStateAction.Register, { name: waiting.name, token: waiting.registered.token });
+      expect(await registered).toMatchObject({ gameId: null, tournamentId: id });
+
       playing = true;
       answers.forEach(answer => answer());
 
@@ -714,13 +885,146 @@ describe("tournaments on the server", () => {
         expect(table?.tournament?.round).toBe(2);
       }, { timeout: 10000, interval: 5 });
       expect([...gameServer.tables][0].players.map(p => p.name)).toContain(waiting.name);
-
-      const back = await newSocket();
-      const registered = nextEvent<any>(back, GameStateAction.Registered);
-      back.emit(GameStateAction.Register, { name: waiting.name, token: waiting.registered.token });
-
-      expect((await registered).gameId).toBe([...gameServer.tables][0].id);
+      expect((await getJson(`/api/tournaments/${id}`)).absences).toEqual([[], []]);
     }, 15000);
+
+    describe("waiting before a round", () => {
+      // Short, and unlike any other timer in these games, so that the test can count it
+      const ROUND_WAIT = 37;
+
+      // Plays the first round while the bot that sits out is disconnected
+      const finishRoundWithoutOneBot = async (id: string) => {
+        const bots = await signUpAll(["a", "b", "c", "d"], id);
+        let playing = false;
+        const answers = bots.map(bot => playLegally(bot.socket, bot.name, () => !playing));
+        const received = new Set<string>();
+        bots.forEach(bot => bot.socket.once(GameStateAction.State, () => received.add(bot.name)));
+
+        await post(`/api/tournaments/${id}/start`);
+        await vi.waitFor(() => expect(received.size).toBe(3));
+
+        const seated = [...gameServer.tables][0].players.map(p => p.name);
+        const away = bots.find(bot => !seated.includes(bot.name))!;
+        away.socket.close();
+        await vi.waitFor(() => expect(gameServer.connectedBots.size).toBe(3));
+
+        playing = true;
+        answers.forEach(answer => answer());
+        await vi.waitFor(
+          async () => {
+            const { schedule } = await getJson(`/api/tournaments/${id}`);
+            expect(schedule[0][0].result).not.toBeNull();
+          },
+          { timeout: 10000, interval: 5 }
+        );
+        return { away };
+      };
+
+      const comeBack = async (bot: { name: string; registered: { token: string } }) => {
+        const back = await newSocket();
+        playLegally(back, bot.name);
+        const registered = nextEvent<any>(back, GameStateAction.Registered);
+        back.emit(GameStateAction.Register, { name: bot.name, token: bot.registered.token });
+        return registered;
+      };
+
+      it("holds the next round for a bot that has just gone", async () => {
+        await startServer({ roundWaitMs: NEVER });
+        const id = await createTournament(3, 2);
+
+        await finishRoundWithoutOneBot(id);
+
+        expect((await getJson(`/api/tournaments/${id}`)).schedule).toHaveLength(1);
+        expect(gameServer.tables.size).toBe(0);
+      }, 15000);
+
+      it("draws at once when the bot is back, without a missed round", async () => {
+        await startServer({ roundWaitMs: NEVER });
+        const id = await createTournament(3, 2);
+        const { away } = await finishRoundWithoutOneBot(id);
+
+        await comeBack(away);
+
+        const { schedule, absences } = await getJson(`/api/tournaments/${id}`);
+        expect(schedule).toHaveLength(2);
+        expect(absences).toEqual([[], []]);
+        expect([...gameServer.tables][0].players.map(p => p.name)).toContain(away.name);
+      }, 15000);
+
+      it("draws without the bot when the wait ends", async () => {
+        await startServer({ roundWaitMs: 30 });
+        const id = await createTournament(3, 2);
+        const { away } = await finishRoundWithoutOneBot(id);
+
+        await vi.waitFor(async () => {
+          const { absences } = await getJson(`/api/tournaments/${id}`);
+          expect(absences).toEqual([[], [expect.objectContaining({ name: away.name })]]);
+        });
+      }, 15000);
+
+      it("draws only once if the bot returns just as the wait ends", async () => {
+        await startServer({ roundWaitMs: 5 });
+        const id = await createTournament(3, 2);
+        const { away } = await finishRoundWithoutOneBot(id);
+
+        await comeBack(away);
+        await new Promise(resolve => setTimeout(resolve, 30));
+
+        expect((await getJson(`/api/tournaments/${id}`)).schedule).toHaveLength(2);
+      }, 15000);
+
+      it("waits once for a bot, not every round", async () => {
+        const timers = vi.spyOn(globalThis, "setTimeout");
+        await startServer({ roundWaitMs: ROUND_WAIT });
+        const id = await createTournament(3, 3);
+        const bots = await signUpAll(["a", "b", "c", "d"], id);
+        const here = bots.slice(1);
+        here.forEach(bot => playLegally(bot.socket, bot.name));
+
+        await post(`/api/tournaments/${id}/start`);
+        bots[0].socket.close();
+
+        const tournament = await finished(id);
+
+        expect(tournament.schedule).toHaveLength(3);
+        expect(timers.mock.calls.filter(([, ms]) => ms === ROUND_WAIT)).toHaveLength(1);
+      }, 15000);
+
+      it("doesn't wait when everyone is here", async () => {
+        await startServer({ roundWaitMs: NEVER });
+        const id = await createTournament(3, 2);
+        const bots = await signUpAll(["a", "b", "c"], id);
+        bots.forEach(bot => playLegally(bot.socket, bot.name));
+
+        await post(`/api/tournaments/${id}/start`);
+
+        expect((await finished(id)).schedule).toHaveLength(2);
+      }, 15000);
+
+      it("doesn't wait when nobody is left", async () => {
+        await startServer({ roundWaitMs: NEVER });
+        const id = await createTournament(3, 3);
+        const bots = await signUpAll(["a", "b", "c"], id);
+
+        await post(`/api/tournaments/${id}/start`);
+        bots.forEach(bot => bot.socket.close());
+
+        expect((await finished(id)).schedule).toHaveLength(3);
+      }, 15000);
+
+      it("doesn't wait after the last round", async () => {
+        await startServer({ roundWaitMs: NEVER });
+        const id = await createTournament(3, 1);
+        const bots = await signUpAll(["a", "b", "c"], id);
+        playLegally(bots[1].socket, "b");
+        playLegally(bots[2].socket, "c");
+
+        await post(`/api/tournaments/${id}/start`);
+        bots[0].socket.close();
+
+        await finished(id);
+      }, 15000);
+    });
 
     it("refuses a bot coming back after the end", async () => {
       await startServer();
@@ -847,6 +1151,72 @@ describe("tournaments on the server", () => {
       await startServer();
       expect((await fetch(url("/api/tournaments/nope"))).status).toBe(404);
       expect((await post("/api/tournaments/nope/start")).status).toBe(404);
+      expect((await post("/api/tournaments/nope/cancel")).status).toBe(404);
+    });
+
+    describe("cancelling", () => {
+      it("tells the bots and frees them for casual games", async () => {
+        await startServer();
+        const id = await createTournament(3, 1);
+        const [bot] = await signUpAll(["a", "b"], id);
+        const told = nextEvent<any>(bot.socket, GameStateAction.TournamentCancelled);
+
+        const response = await post(`/api/tournaments/${id}/cancel`);
+
+        expect(response.status).toBe(200);
+        expect(await told).toEqual({ tournamentId: id });
+        const tournament = await getJson(`/api/tournaments/${id}`);
+        expect(tournament).toMatchObject({ status: "cancelled", entrants: [] });
+
+        const registered = nextEvent<any>(bot.socket, GameStateAction.Registered);
+        bot.socket.emit(GameStateAction.Register, {});
+        expect((await registered).gameId).toBeTruthy();
+      });
+
+      it("needs the key", async () => {
+        await startServer();
+        const id = await createTournament(3, 1);
+
+        expect((await post(`/api/tournaments/${id}/cancel`, undefined, null)).status).toBe(401);
+        expect((await post(`/api/tournaments/${id}/cancel`, undefined, "wrong")).status).toBe(401);
+        expect((await getJson(`/api/tournaments/${id}`)).status).toBe("signup");
+      });
+
+      it("isn't possible once it has started", async () => {
+        await startServer();
+        const id = await createTournament(3, 1);
+        await signUpAll(["a", "b", "c"], id);
+        await post(`/api/tournaments/${id}/start`);
+
+        expect((await post(`/api/tournaments/${id}/cancel`)).status).toBe(409);
+        expect((await getJson(`/api/tournaments/${id}`)).status).toBe("running");
+      });
+
+      it("can't be done twice, or followed by a start or sign-up", async () => {
+        await startServer();
+        const id = await createTournament(3, 1);
+        await post(`/api/tournaments/${id}/cancel`);
+
+        expect((await post(`/api/tournaments/${id}/cancel`)).status).toBe(409);
+        expect((await post(`/api/tournaments/${id}/start`)).status).toBe(409);
+
+        const socket = await newSocket();
+        const error = nextEvent<string>(socket, GameStateAction.ErrorMessage);
+        socket.emit(GameStateAction.Register, { name: "late", tournamentId: id });
+        expect(await error).toBe("Tournament is closed for sign-up");
+      });
+
+      it("stays cancelled after a restart", () => {
+        const dir = mkdtempSync(join(tmpdir(), "tournaments-"));
+        try {
+          const t = tournamentOf([], 3);
+          t.status = "cancelled";
+          new TournamentStore(dir).save(t);
+          expect(new TournamentStore(dir).get("t")?.status).toBe("cancelled");
+        } finally {
+          rmSync(dir, { recursive: true, force: true });
+        }
+      });
     });
 
     it("hides what is running", async () => {

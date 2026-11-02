@@ -9,7 +9,12 @@ export const STATUS_LABELS: Record<TournamentStatus, string> = {
   running: 'Running',
   finished: 'Finished',
   interrupted: 'Interrupted',
+  cancelled: 'Cancelled',
 };
+
+// Nothing more will happen to a tournament in one of these
+export const hasEnded = ({ status }: { status: TournamentStatus }) =>
+  status === 'finished' || status === 'interrupted' || status === 'cancelled';
 
 const REFRESH_MS = 5000;
 
@@ -80,7 +85,7 @@ const CreateForm = () => {
 export const TournamentsPage = () => {
   const loaded = useApi<TournamentSummary[]>('/api/tournaments', {
     refreshMs: REFRESH_MS,
-    until: tournaments => tournaments.every(t => t.status === 'finished' || t.status === 'interrupted'),
+    until: tournaments => tournaments.every(hasEnded),
   });
 
   if (loaded.status === 'loading') return <p>Loading tournaments…</p>;

@@ -4,7 +4,7 @@ import { GameResult, PlayerResult } from './result-store';
 import { MAX_PLAYERS, MIN_PLAYERS } from './wizard/game-engine';
 import { RegisteredPlayer } from './wizard/types';
 
-export type TournamentStatus = 'signup' | 'running' | 'finished' | 'interrupted';
+export type TournamentStatus = 'signup' | 'running' | 'finished' | 'interrupted' | 'cancelled';
 
 export const MAX_ROUNDS = 100;
 const MAX_NAME_LENGTH = 64;
@@ -26,16 +26,22 @@ export interface Tournament {
   entrants: RegisteredPlayer[];
   // Tables by round, only for rounds that have been drawn
   schedule: TournamentTable[][];
+  // Bots that were gone when each round was drawn. Missing from older files.
+  absences?: RegisteredPlayer[][];
 }
 
 export interface StandingsRow {
   rank: number;
   botId: string;
   name: string;
+  // Includes the rounds it missed, which are worth 0 points
   games: number;
+  missed: number;
   points: number;
   averagePoints: number;
   wins: number;
+  // Over the games it finished. Used only as the last tie-break.
+  averageScore: number;
 }
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
@@ -77,33 +83,101 @@ export const placingPoints = ({ players, didNotFinish }: GameResult, tableSize: 
   return placings;
 };
 
-// Average points decide, because bots sitting out can leave a difference of one game.
-// Bots level on both average and wins share a rank.
-export const standings = ({ entrants, schedule, tableSize }: Tournament): StandingsRow[] => {
-  const totals = new Map(entrants.map(bot => [bot.id, { games: 0, points: 0, wins: 0 }]));
+// For a group of level bots: games each won against the others, minus games lost to them
+const headToHead = (group: string[], results: GameResult[], tableSize: number) => {
+  const net = new Map(group.map(id => [id, 0]));
 
-  for (const table of schedule.flat()) {
-    if (!table.result) continue;
-    for (const [botId, { points, won }] of placingPoints(table.result, tableSize)) {
+  for (const result of results) {
+    const placings = placingPoints(result, tableSize);
+    const present = group.filter(id => placings.has(id));
+    for (const id of present) {
+      for (const other of present) {
+        const difference = placings.get(id)!.points - placings.get(other)!.points;
+        net.set(id, net.get(id)! + Math.sign(difference));
+      }
+    }
+  }
+  return net;
+};
+
+// Average points decide, because bots sitting out can leave a difference of one game. Ties
+// go to the most wins, then to who placed ahead when the level bots met, and last to the
+// average game score. Only bots level on all of these share a rank.
+export const standings = ({ entrants, schedule, tableSize, absences = [] }: Tournament): StandingsRow[] => {
+  const totals = new Map(
+    entrants.map(bot => [bot.id, { played: 0, missed: 0, points: 0, wins: 0, score: 0, finished: 0 }])
+  );
+  const results = schedule.flat().flatMap(table => (table.result ? [table.result] : []));
+
+  for (const result of results) {
+    for (const [botId, { points, won }] of placingPoints(result, tableSize)) {
       const total = totals.get(botId);
       if (!total) continue;
-      total.games++;
+      total.played++;
       total.points += points;
       total.wins += won ? 1 : 0;
     }
+    for (const { botId, score } of result.players) {
+      const total = totals.get(botId);
+      if (!total || result.didNotFinish?.includes(botId)) continue;
+      total.finished++;
+      total.score += score;
+    }
+  }
+
+  for (const bot of absences.flat()) {
+    const total = totals.get(bot.id);
+    if (total) total.missed++;
   }
 
   const rows = entrants
     .map(bot => {
-      const { games, points, wins } = totals.get(bot.id)!;
-      return { botId: bot.id, name: bot.name, games, points, wins, averagePoints: games ? points / games : 0 };
+      const { played, missed, points, wins, score, finished } = totals.get(bot.id)!;
+      const games = played + missed;
+      return {
+        botId: bot.id,
+        name: bot.name,
+        games,
+        missed,
+        points,
+        wins,
+        averagePoints: games ? points / games : 0,
+        averageScore: finished ? score / finished : 0,
+      };
     })
-    .sort((a, b) => b.averagePoints - a.averagePoints || b.wins - a.wins || a.name.localeCompare(b.name));
+    .sort((a, b) => b.averagePoints - a.averagePoints || b.wins - a.wins);
 
-  return rows.map(row => {
-    const rank = 1 + rows.findIndex(r => r.averagePoints === row.averagePoints && r.wins === row.wins);
-    return { rank, ...row, averagePoints: round(row.averagePoints) };
-  });
+  const net = new Map<string, number>();
+  const ordered: typeof rows = [];
+
+  while (rows.length > 0) {
+    const [first] = rows;
+    const level = rows.filter(r => r.averagePoints === first.averagePoints && r.wins === first.wins);
+    rows.splice(0, level.length);
+
+    headToHead(level.map(r => r.botId), results, tableSize).forEach((value, id) => net.set(id, value));
+    ordered.push(
+      ...level.sort(
+        (a, b) =>
+          net.get(b.botId)! - net.get(a.botId)! ||
+          b.averageScore - a.averageScore ||
+          a.name.localeCompare(b.name)
+      )
+    );
+  }
+
+  const isLevel = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
+    a.averagePoints === b.averagePoints &&
+    a.wins === b.wins &&
+    net.get(a.botId) === net.get(b.botId) &&
+    a.averageScore === b.averageScore;
+
+  return ordered.map(row => ({
+    rank: 1 + ordered.findIndex(other => isLevel(other, row)),
+    ...row,
+    averagePoints: round(row.averagePoints),
+    averageScore: round(row.averageScore),
+  }));
 };
 
 const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);

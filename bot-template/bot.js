@@ -158,6 +158,12 @@ socket.on('tournamentFinished', ({ rank, bots }) => {
   process.exit(0);
 });
 
+socket.on('tournamentCancelled', () => {
+  console.log('The organiser cancelled the tournament');
+  socket.close();
+  process.exit(0);
+});
+
 socket.on('playersUpdated', (players) => {
   console.log(`Players: ${players.map((player) => player.name).join(', ')}`);
 });

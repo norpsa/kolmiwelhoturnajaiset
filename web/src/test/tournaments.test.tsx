@@ -72,10 +72,11 @@ const tournament = (changes: Partial<Tournament> = {}): Tournament => ({
     [{ gameId: 'game-1', players: entrants, result }],
     [{ gameId: null, players: entrants, result: null }],
   ],
+  absences: [[], [{ id: 'c', name: 'Gamma' }]],
   standings: [
-    { rank: 1, botId: 'a', name: 'Alpha', games: 1, points: 2, averagePoints: 2, wins: 1 },
-    { rank: 2, botId: 'b', name: 'Beta', games: 1, points: 1, averagePoints: 1, wins: 0 },
-    { rank: 3, botId: 'c', name: 'Gamma', games: 1, points: 0, averagePoints: 0, wins: 0 },
+    { rank: 1, botId: 'a', name: 'Alpha', games: 1, missed: 0, points: 2, averagePoints: 2, wins: 1, averageScore: 30.4 },
+    { rank: 2, botId: 'b', name: 'Beta', games: 1, missed: 0, points: 1, averagePoints: 1, wins: 0, averageScore: 20 },
+    { rank: 3, botId: 'c', name: 'Gamma', games: 2, missed: 1, points: 0, averagePoints: 0, wins: 0, averageScore: 0 },
   ],
   ...changes,
 });
@@ -238,8 +239,64 @@ describe('tournament page', () => {
     open('/tournaments/t1');
 
     const row = (await screen.findByRole('link', { name: 'Alpha' })).closest('tr')!;
-    expect(within(row).getAllByRole('cell').map(cell => cell.textContent)).toEqual(['1', 'Alpha', '1', '2', '2.00', '1']);
-    expect(screen.getByRole('region', { name: 'Standings' }).textContent).toContain('1st place gets 2 points');
+    expect(within(row).getAllByRole('cell').map(cell => cell.textContent)).toEqual([
+      '1', 'Alpha', '1', '2', '2.00', '1', '0', '30',
+    ]);
+    const standings = screen.getByRole('region', { name: 'Standings' }).textContent;
+    expect(standings).toContain('1st place gets 2 points');
+    expect(standings).toContain('who placed ahead when the tied bots met');
+  });
+
+  it('shows who missed a round', async () => {
+    mockApi(() => respond(tournament()));
+    open('/tournaments/t1');
+
+    const rounds = await screen.findByRole('region', { name: 'Rounds' });
+    expect(rounds.textContent).toContain('Missed this round: Gamma');
+    const round1 = within(rounds).getByRole('heading', { name: 'Round 1 of 2' }).closest('.round')!;
+    expect(round1.textContent).not.toContain('Missed this round');
+  });
+
+  it('copes with a tournament saved before absences existed', async () => {
+    mockApi(() => respond(tournament({ absences: undefined })));
+    open('/tournaments/t1');
+
+    expect(await screen.findByRole('region', { name: 'Rounds' })).toBeTruthy();
+  });
+
+  it('cancels with the key and says so', async () => {
+    let cancelled = false;
+    const calls = mockApi(({ init }) => {
+      if (init?.method === 'POST') cancelled = true;
+      return respond(tournament({ status: cancelled ? 'cancelled' : 'signup', schedule: [], absences: [] }));
+    });
+    open('/tournaments/t1');
+    await screen.findByText(/node bot.js/);
+
+    const cancel = screen.getByRole('button', { name: 'Cancel the tournament' }) as HTMLButtonElement;
+    expect(cancel.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('Organiser key'), { target: { value: 'secret' } });
+    fireEvent.click(cancel);
+
+    expect(await screen.findByText(/cancelled this tournament/)).toBeTruthy();
+    const post = calls.find(call => call.init?.method === 'POST')!;
+    expect(post.path).toBe('/api/tournaments/t1/cancel');
+    expect((post.init!.headers as Record<string, string>).Authorization).toBe('Bearer secret');
+    expect(screen.queryByRole('region', { name: 'Standings' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Sign-up' })).toBeNull();
+  });
+
+  it('explains when cancelling fails', async () => {
+    mockApi(({ init }) =>
+      init?.method === 'POST' ? respond({ error: 'no' }, 401) : respond(tournament({ status: 'signup', schedule: [] }))
+    );
+    open('/tournaments/t1');
+    await screen.findByText(/node bot.js/);
+
+    fireEvent.change(screen.getByLabelText('Organiser key'), { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel the tournament' }));
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Wrong organiser key.');
   });
 
   it('shows the newest round first, with running tables and replays', async () => {
@@ -345,8 +402,8 @@ describe('tournament page', () => {
       expect(screen.queryByRole('alert')).toBeNull();
     });
 
-    it("doesn't refresh a finished tournament", async () => {
-      const calls = mockApi(() => respond(tournament({ status: 'finished' })));
+    it.each(['finished', 'interrupted', 'cancelled'] as const)("doesn't refresh a tournament that is %s", async status => {
+      const calls = mockApi(() => respond(tournament({ status })));
       open('/tournaments/t1');
       await settle();
 

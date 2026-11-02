@@ -44,6 +44,7 @@ interface GameServerOptions {
   turnTimeoutMs?: number;
   extraTimeMs?: number;
   lobbyWaitMs?: number;
+  roundWaitMs?: number;
   botRegistry?: BotRegistry;
   resultStore?: ResultStore;
   replayStore?: ReplayStore;
@@ -60,6 +61,7 @@ const MAX_GAMES_PER_PAGE = 100;
 const DEFAULT_TURN_TIMEOUT_MS = 10000;
 const DEFAULT_EXTRA_TIME_MS = 60000;
 const DEFAULT_LOBBY_WAIT_MS = 5000;
+const DEFAULT_ROUND_WAIT_MS = 5000;
 // Smaller tables can still be started with startGame
 const MIN_PLAYERS_TO_AUTO_START = 4;
 
@@ -101,6 +103,7 @@ export const createGameServer = ({
   turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
   extraTimeMs = DEFAULT_EXTRA_TIME_MS,
   lobbyWaitMs = DEFAULT_LOBBY_WAIT_MS,
+  roundWaitMs = DEFAULT_ROUND_WAIT_MS,
   botRegistry = new BotRegistry(),
   resultStore = new ResultStore(),
   replayStore = new ReplayStore(),
@@ -179,6 +182,7 @@ export const createGameServer = ({
       createdAt: new Date().toISOString(),
       entrants: [],
       schedule: [],
+      absences: [],
     };
     tournamentStore.save(tournament);
     res.status(201).json(publicTournament(tournament));
@@ -201,6 +205,27 @@ export const createGameServer = ({
 
     tournament.status = 'running';
     startRound(tournament);
+    res.json(publicTournament(tournament));
+  });
+
+  app.post('/api/tournaments/:id/cancel', requireAdmin, (req, res) => {
+    const tournament = tournamentStore.get(req.params.id);
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+    if (tournament.status !== 'signup') {
+      res.status(409).json({ error: 'Only a tournament that has not started can be cancelled' });
+      return;
+    }
+
+    for (const bot of tournament.entrants) {
+      botTournaments.delete(bot.id);
+      connectedBots.get(bot.id)?.emit(GameStateAction.TournamentCancelled, { tournamentId: tournament.id });
+    }
+    tournament.entrants = [];
+    tournament.status = 'cancelled';
+    saveTournament(tournament);
     res.json(publicTournament(tournament));
   });
 
@@ -230,6 +255,9 @@ export const createGameServer = ({
   const botTables = new Map<string, GameTable>();
   // From signing up until the tournament ends, also between its games
   const botTournaments = new Map<string, Tournament>();
+  // By tournament id: the timer of a round waiting for bots, and who was gone at the last draw
+  const roundTimers = new Map<string, NodeJS.Timeout>();
+  const goneAtLastDraw = new Map<string, Set<string>>();
 
   const newTable = (players: RegisteredPlayer[], playerCount: number | null, id: string = randomUUID()): GameTable => {
     const table = { id, players, game: null, playerCount, turnStartedAt: 0, extraTime: new Map() };
@@ -388,6 +416,7 @@ export const createGameServer = ({
       const entered = botTournaments.get(bot.id);
       if (entered) {
         sendRegistered(socket, bot, tournamentSeat(entered));
+        drawIfEveryoneIsBack(entered);
       } else if (tournament) {
         enterTournament(bot, tournament, identity.token);
       } else {
@@ -596,11 +625,56 @@ export const createGameServer = ({
     startGame(table);
   };
 
+  // Bots that are gone miss the round, which is worth 0 points, so that leaving can't protect
+  // a good average. They would only give their table an easier game. If too few bots are
+  // left for a table, some of them are seated anyway so that the tournament can finish.
+  const drawRound = (tournament: Tournament) => {
+    const here = tournament.entrants.filter(bot => connectedBots.has(bot.id));
+    const gone = tournament.entrants.filter(bot => !connectedBots.has(bot.id));
+    const fillers = gone.slice(0, Math.max(0, tournament.tableSize - here.length));
+
+    tournament.absences = [...(tournament.absences ?? []), gone.slice(fillers.length)];
+    goneAtLastDraw.set(tournament.id, new Set(gone.map(bot => bot.id)));
+    return [...here, ...fillers].map(bot => bot.id);
+  };
+
+  // A bot that has just gone may only have lost its connection for a moment. There's no
+  // point waiting for bots that were already gone, or when nobody is left to play.
+  const botsToWaitFor = (tournament: Tournament) => {
+    const gone = tournament.entrants.filter(bot => !connectedBots.has(bot.id));
+    if (gone.length === tournament.entrants.length) return [];
+
+    const known = goneAtLastDraw.get(tournament.id);
+    return gone.filter(bot => !known?.has(bot.id));
+  };
+
+  const startNextRound = (tournament: Tournament) => {
+    if (botsToWaitFor(tournament).length === 0) {
+      startRound(tournament);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      roundTimers.delete(tournament.id);
+      startRound(tournament);
+    }, roundWaitMs);
+    timer.unref();
+    roundTimers.set(tournament.id, timer);
+  };
+
+  const drawIfEveryoneIsBack = (tournament: Tournament) => {
+    const timer = roundTimers.get(tournament.id);
+    if (!timer || botsToWaitFor(tournament).length > 0) return;
+
+    clearTimeout(timer);
+    roundTimers.delete(tournament.id);
+    startRound(tournament);
+  };
+
   // Saved before starting, because a table of absent bots plays out right away
   const startRound = (tournament: Tournament) => {
     const earlierTables = tournament.schedule.flat().map(table => table.players.map(p => p.id));
-    const botIds = tournament.entrants.map(bot => bot.id);
-    const seats = drawTables(botIds, tournament.tableSize, earlierTables).map(ids => ({
+    const seats = drawTables(drawRound(tournament), tournament.tableSize, earlierTables).map(ids => ({
       id: randomUUID(),
       players: ids.map(id => tournament.entrants.find(bot => bot.id === id)!),
       result: null,
@@ -619,11 +693,12 @@ export const createGameServer = ({
     if (tournament.schedule.at(-1)!.some(table => !table.result)) return;
 
     if (tournament.schedule.length < tournament.rounds) {
-      startRound(tournament);
+      startNextRound(tournament);
       return;
     }
 
     tournament.status = 'finished';
+    goneAtLastDraw.delete(tournament.id);
     saveTournament(tournament);
 
     for (const { botId, rank } of standings(tournament)) {
