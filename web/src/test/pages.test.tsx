@@ -324,12 +324,14 @@ describe('replay page', () => {
     fireEvent.click(button('Play'));
     expect(button('Pause')).toBeTruthy();
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1999); });
+    expect(status()).toContain('Step 1 of 23');
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(status()).toContain('Step 2 of 23');
 
     // One at a time, because each step sets the timer for the next one
     for (let step = 0; step < 30; step++) {
-      await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
     }
     expect(status()).toContain('Step 23 of 23');
     expect(button('Play')).toBeTruthy();
@@ -352,7 +354,7 @@ describe('replay page', () => {
 
     fireEvent.change(screen.getByLabelText('Speed'), { target: { value: '2' } });
     fireEvent.click(button('Play'));
-    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
 
     expect(status()).toContain('Step 2 of 23');
   });

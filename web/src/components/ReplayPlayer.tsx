@@ -3,8 +3,8 @@ import { buildFrames, buildScoreTable, describeEvent, Frame, roundStarts, totalB
 import { GameReplay, RegisteredPlayer } from '../types';
 import { CardView } from './CardView';
 
-const SPEEDS = [0.5, 1, 2, 5, 20];
-const STEP_MS = 800;
+const SPEEDS = [0.5, 1, 2, 5, 10];
+const STEP_MS = 2000;
 
 const isAuto = (frame: Frame) => 'auto' in frame.event && frame.event.auto;
 
