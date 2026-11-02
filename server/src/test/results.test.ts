@@ -7,6 +7,7 @@ import { io as connect, Socket } from "socket.io-client";
 import { createGameServer } from "../game-server";
 import { GameResult, LeaderboardRow, ResultStore } from "../result-store";
 import { GameState, GameStateAction } from "../wizard/types";
+import { playLegally } from "./legal-move";
 
 const NEVER = 60000;
 
@@ -106,10 +107,92 @@ describe("ResultStore", () => {
   });
 });
 
+describe("games that a bot didn't finish", () => {
+  const unfinished = (scores: Record<string, number>, ...names: string[]): GameResult => ({
+    ...game(scores),
+    didNotFinish: names.map(name => `id-${name}`),
+  });
+
+  it("don't count for the bot that left", () => {
+    const store = new ResultStore();
+    store.record(game({ a: 30, b: 20, c: 10 }));
+    store.record(unfinished({ a: 500, b: 0, c: 0 }, "a"));
+
+    expect(row(store, "a")).toMatchObject({ games: 1, wins: 1, averageScore: 30 });
+  });
+
+  it("count for the bots that finished", () => {
+    const store = new ResultStore();
+    store.record(game({ a: 30, b: 20, c: 10 }));
+    store.record(unfinished({ a: 500, b: 40, c: 20 }, "a"));
+
+    expect(row(store, "b")).toMatchObject({ games: 2, wins: 1, averageScore: 30 });
+    expect(row(store, "c")).toMatchObject({ games: 2, wins: 0, averageScore: 15 });
+  });
+
+  it("compare the bots that finished only with each other", () => {
+    const store = new ResultStore();
+    store.record(unfinished({ a: 500, b: 30, c: 20, d: 10 }, "a"));
+
+    expect(row(store, "b")).toMatchObject({ wins: 1, performance: 1 });
+    expect(row(store, "c")).toMatchObject({ wins: 0, performance: 0.5 });
+    expect(row(store, "d")).toMatchObject({ wins: 0, performance: 0 });
+  });
+
+  it("leave a bot out if it has no other games", () => {
+    const store = new ResultStore();
+    store.record(unfinished({ a: 30, b: 20, d: 10 }, "d"));
+
+    expect(store.leaderboard().map(r => r.name)).toEqual(["a", "b"]);
+  });
+
+  it("don't count for a bot with nobody left to beat", () => {
+    const store = new ResultStore();
+    store.record(unfinished({ a: 30, b: 20, c: 10 }, "a", "b"));
+
+    expect(store.leaderboard()).toEqual([]);
+  });
+
+  it("don't count for anyone if everyone left", () => {
+    const store = new ResultStore();
+    store.record(unfinished({ a: 30, b: 20, c: 10 }, "a", "b", "c"));
+
+    expect(store.leaderboard()).toEqual([]);
+  });
+
+  it("are still listed", () => {
+    const store = new ResultStore();
+    store.record(unfinished({ a: 30, b: 20, c: 10 }, "a"));
+
+    expect(store.games({ limit: 10, offset: 0 }).total).toBe(1);
+    expect(store.find("g")).toBeDefined();
+  });
+
+  it("count if everyone finished", () => {
+    const store = new ResultStore();
+    store.record({ ...game({ a: 30, b: 20, c: 10 }), didNotFinish: [] });
+
+    expect(row(store, "a").games).toBe(1);
+  });
+
+  it("stay left out after a restart", () => {
+    const dir = mkdtempSync(join(tmpdir(), "results-"));
+    try {
+      const file = join(dir, "results.jsonl");
+      new ResultStore(file).record(unfinished({ a: 30, b: 20, c: 10 }, "a"));
+
+      expect(new ResultStore(file).leaderboard().map(r => r.name)).toEqual(["b", "c"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("recording games", () => {
   let gameServer: ReturnType<typeof createGameServer>;
   let port: number;
   let clients: Socket[];
+  let tokens: Record<string, string>;
 
   const nextEvent = <T>(socket: Socket, event: string) =>
     new Promise<T>(resolve => socket.once(event, resolve));
@@ -131,9 +214,9 @@ describe("recording games", () => {
     await Promise.all(bots.map(b => nextEvent(b, "connect")));
 
     for (const [i, bot] of bots.entries()) {
-      const registered = nextEvent(bot, GameStateAction.Registered);
+      const registered = nextEvent<{ token: string }>(bot, GameStateAction.Registered);
       bot.emit(GameStateAction.Register, { name: names[i] });
-      await registered;
+      tokens[names[i]] = (await registered).token;
     }
     return bots;
   };
@@ -148,6 +231,7 @@ describe("recording games", () => {
   beforeEach(() => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     clients = [];
+    tokens = {};
   });
 
   afterEach(async () => {
@@ -179,8 +263,10 @@ describe("recording games", () => {
   }, 15000);
 
   it("shows finished games on the leaderboard without tokens", async () => {
-    await startServer({ turnTimeoutMs: 1 });
-    const bots = await connectBots(["a", "b", "c"]);
+    await startServer({ turnTimeoutMs: NEVER });
+    const names = ["a", "b", "c"];
+    const bots = await connectBots(names);
+    bots.forEach((bot, i) => playLegally(bot, names[i]));
 
     const final = gameOver(bots[0]);
     bots[0].emit(GameStateAction.StartGame);
@@ -205,8 +291,9 @@ describe("recording games", () => {
     expect(await leaderboard()).toEqual([]);
   });
 
-  it("plays out and records a game that everyone has left", async () => {
-    await startServer({ turnTimeoutMs: NEVER });
+  it("plays out and records a game that everyone has left, without ranking it", async () => {
+    const resultStore = new ResultStore();
+    await startServer({ turnTimeoutMs: NEVER, resultStore });
     const bots = await connectBots(["a", "b", "c"]);
     const started = nextEvent(bots[0], GameStateAction.State);
     bots[0].emit(GameStateAction.StartGame);
@@ -215,7 +302,94 @@ describe("recording games", () => {
     bots.forEach(b => b.close());
     await vi.waitFor(() => expect(gameServer.tables.size).toBe(0), { interval: 5 });
 
-    expect((await leaderboard()).map(r => r.games)).toEqual([1, 1, 1]);
+    const [game] = resultStore.games({ limit: 1, offset: 0 }).games;
+    expect(game.didNotFinish).toHaveLength(3);
+    expect(await leaderboard()).toEqual([]);
+  });
+
+  describe("bots that don't play to the end", () => {
+    const NAMES = ["a", "b", "c"];
+
+    const finishedGame = async (resultStore: ResultStore) => {
+      await vi.waitFor(() => expect(resultStore.games({ limit: 1, offset: 0 }).total).toBe(1), { timeout: 10000 });
+      return resultStore.games({ limit: 1, offset: 0 }).games[0];
+    };
+
+    const idOf = (game: GameResult, name: string) => game.players.find(p => p.name === name)!.botId;
+
+    const rankedNames = async () => (await leaderboard()).map(r => r.name).sort();
+
+    it("leaves out only the bot that left", async () => {
+      const resultStore = new ResultStore();
+      await startServer({ turnTimeoutMs: NEVER, resultStore });
+      const bots = await connectBots(NAMES);
+      playLegally(bots[1], "b");
+      playLegally(bots[2], "c");
+
+      const started = nextEvent(bots[0], GameStateAction.State);
+      bots[0].emit(GameStateAction.StartGame);
+      await started;
+      bots[0].close();
+
+      const game = await finishedGame(resultStore);
+      expect(game.didNotFinish).toEqual([idOf(game, "a")]);
+      expect(await rankedNames()).toEqual(["b", "c"]);
+    }, 15000);
+
+    it("leaves out only the bot that stopped answering", async () => {
+      const resultStore = new ResultStore();
+      await startServer({ turnTimeoutMs: 2, resultStore });
+      const bots = await connectBots(NAMES);
+      playLegally(bots[1], "b");
+      playLegally(bots[2], "c");
+
+      bots[0].emit(GameStateAction.StartGame);
+
+      const game = await finishedGame(resultStore);
+      expect(game.didNotFinish).toEqual([idOf(game, "a")]);
+      expect(await rankedNames()).toEqual(["b", "c"]);
+    }, 15000);
+
+    it("counts a game where a bot missed a move and carried on", async () => {
+      const resultStore = new ResultStore();
+      await startServer({ turnTimeoutMs: 20, resultStore });
+      const bots = await connectBots(NAMES);
+      let missed = false;
+      playLegally(bots[0], "a", () => !missed && (missed = true));
+      playLegally(bots[1], "b");
+      playLegally(bots[2], "c");
+
+      bots[0].emit(GameStateAction.StartGame);
+
+      const game = await finishedGame(resultStore);
+      expect(missed).toBe(true);
+      expect(game.didNotFinish).toEqual([]);
+      expect((await leaderboard()).map(r => r.games)).toEqual([1, 1, 1]);
+    }, 15000);
+
+    it("counts a game that a bot came back to", async () => {
+      const resultStore = new ResultStore();
+      await startServer({ turnTimeoutMs: NEVER, extraTimeMs: NEVER, resultStore });
+      const bots = await connectBots(NAMES);
+      playLegally(bots[1], "b");
+      playLegally(bots[2], "c");
+
+      const started = nextEvent(bots[0], GameStateAction.State);
+      bots[0].emit(GameStateAction.StartGame);
+      await started;
+      bots[0].close();
+      await vi.waitFor(() => expect(gameServer.connectedBots.size).toBe(2), { interval: 5 });
+
+      const back = connect(`http://localhost:${port}`, { transports: ["websocket"], reconnection: false });
+      clients.push(back);
+      await nextEvent(back, "connect");
+      playLegally(back, "a");
+      back.emit(GameStateAction.Register, { name: "a", token: tokens.a });
+
+      const game = await finishedGame(resultStore);
+      expect(game.didNotFinish).toEqual([]);
+      expect((await leaderboard()).map(r => r.games)).toEqual([1, 1, 1]);
+    }, 15000);
   });
 
   it("doesn't record a table that never started", async () => {
@@ -246,9 +420,10 @@ describe("recording games", () => {
   }, 15000);
 
   it("runs a series when bots keep registering", async () => {
-    await startServer({ turnTimeoutMs: 1, lobbyWaitMs: 1 });
+    await startServer({ turnTimeoutMs: NEVER, lobbyWaitMs: 1 });
     const names = ["a", "b", "c", "d"];
     const bots = await connectBots(names);
+    bots.forEach((bot, i) => playLegally(bot, names[i]));
     const GAMES = 3;
 
     const finished = bots.map(

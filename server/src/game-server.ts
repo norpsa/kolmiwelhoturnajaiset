@@ -358,6 +358,7 @@ export const createGameServer = ({
         gameId: table.id,
         finishedAt: new Date().toISOString(),
         players: table.players.map(p => ({ botId: p.id, name: p.name, score: scores[p.id] })),
+        didNotFinish: table.game!.getBotsThatDidNotFinish(),
       });
     } catch (err) {
       console.error('Saving the result failed:', err);

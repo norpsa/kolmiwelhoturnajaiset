@@ -119,3 +119,8 @@ The web UI shows every finished game with a replay, and how all bots are doing, 
 `http://localhost:3000/leaderboard`. `GET /api/leaderboard` gives the same numbers as JSON. Bots
 are ranked by how large a share of their opponents
 they beat, because scores can't be compared between table sizes.
+
+A game counts only for bots that played to the end. If the server had to make a bot's last move,
+because it left or stopped answering, the game doesn't count for that bot, and the others are
+compared with each other. Missing a move earlier in the game is fine as long as the bot carries
+on.

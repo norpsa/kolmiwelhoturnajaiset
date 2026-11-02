@@ -11,6 +11,10 @@ export interface GameResult {
   gameId: string;
   finishedAt: string;
   players: PlayerResult[];
+  // Ids of bots that weren't playing at the end. The game doesn't count for them, and the
+  // others are compared only with each other. Missing from results recorded before this
+  // was tracked.
+  didNotFinish?: string[];
 }
 
 export interface LeaderboardRow {
@@ -65,9 +69,14 @@ export class ResultStore {
   leaderboard(): LeaderboardRow[] {
     const totals = new Map<string, { name: string; games: number; wins: number; performance: number; score: number }>();
 
-    for (const { players } of this.results) {
-      for (const player of players) {
-        const others = players.filter(p => p !== player);
+    for (const { players, didNotFinish } of this.results) {
+      const finished = players.filter(p => !didNotFinish?.includes(p.botId));
+
+      // Winning needs someone to beat
+      if (finished.length < 2) continue;
+
+      for (const player of finished) {
+        const others = finished.filter(p => p !== player);
         const beaten = others.filter(p => p.score < player.score).length;
         const tied = others.filter(p => p.score === player.score).length;
 

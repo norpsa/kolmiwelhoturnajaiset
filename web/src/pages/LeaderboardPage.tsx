@@ -47,7 +47,8 @@ export const LeaderboardPage = () => {
           </div>
           <p className="note">
             Bots are ranked by performance, the average share of opponents they beat. Average scores
-            can't be compared directly, because smaller tables play more rounds.
+            can't be compared directly, because smaller tables play more rounds. A game doesn't count
+            for a bot that didn't play to the end, and the other bots are compared with each other.
           </p>
         </>
       )}

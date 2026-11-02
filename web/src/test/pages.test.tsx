@@ -61,6 +61,41 @@ describe('games page', () => {
     expect(screen.getAllByLabelText('Winner')).toHaveLength(1);
   });
 
+  it('says who a game does not count for', async () => {
+    const unfinished = { ...details.result, didNotFinish: ['a', 'c'] };
+    mockApi(() => respond({ total: 1, games: [unfinished] }));
+    open('/');
+
+    expect(await screen.findByText("Doesn't count for Alpha, Gamma: didn't play to the end")).toBeTruthy();
+  });
+
+  it.each([[undefined], [[]]])('shows no note when everyone finished (%j)', async didNotFinish => {
+    mockApi(() => respond({ total: 1, games: [{ ...details.result, didNotFinish }] }));
+    open('/');
+
+    await screen.findByText('Beta', { exact: false });
+    expect(screen.queryByText(/Doesn't count/)).toBeNull();
+  });
+
+  it('gives the win to the best bot that finished', async () => {
+    const unfinished = { ...details.result, didNotFinish: ['b'] };
+    mockApi(() => respond({ total: 1, games: [unfinished] }));
+    open('/');
+
+    const winners = await screen.findAllByLabelText('Winner');
+    expect(winners).toHaveLength(1);
+    expect(winners[0].closest('li')!.textContent).toContain('Gamma');
+  });
+
+  it('has no winner when one bot finished alone', async () => {
+    const unfinished = { ...details.result, didNotFinish: ['a', 'b'] };
+    mockApi(() => respond({ total: 1, games: [unfinished] }));
+    open('/');
+
+    await screen.findByText(/Doesn't count/);
+    expect(screen.queryByLabelText('Winner')).toBeNull();
+  });
+
   it('says when there are no games', async () => {
     mockApi(() => respond({ total: 0, games: [] }));
     open('/');
@@ -329,6 +364,13 @@ describe('replay page', () => {
     const rows = within(table).getAllByRole('row', { hidden: true });
     expect(rows).toHaveLength(3);
     expect(rows[2].textContent).toContain('70 (2/2)');
+  });
+
+  it('says who a game does not count for', async () => {
+    mockApi(() => respond({ ...details, result: { ...details.result, didNotFinish: ['b'] } }));
+    open('/games/game-1');
+
+    expect(await screen.findByText("Doesn't count for Beta: didn't play to the end")).toBeTruthy();
   });
 
   it('shows the result of a game with no replay', async () => {

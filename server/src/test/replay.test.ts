@@ -112,6 +112,48 @@ describe("game log", () => {
     });
   });
 
+  describe("bots that didn't finish", () => {
+    // Unshuffled, the first deal and the trump card are all Jesters, so the bots start by bidding
+    const newEngine = () => {
+      vi.spyOn(Deck.prototype, "shuffle").mockImplementationOnce(() => {});
+      return new GameEngine(seats(3));
+    };
+
+    const ownBid = (engine: GameEngine) => engine.setForecast(engine.currentPlayerId!, 1);
+
+    it("has none when everyone made their own moves", () => {
+      const engine = newEngine();
+      ownBid(engine);
+      ownBid(engine);
+      ownBid(engine);
+      expect(engine.getBotsThatDidNotFinish()).toEqual([]);
+    });
+
+    it("finds a bot whose last move the server made", () => {
+      const engine = newEngine();
+      const dropped = engine.currentPlayerId!;
+      engine.playDefaultMove();
+      ownBid(engine);
+      ownBid(engine);
+      expect(engine.getBotsThatDidNotFinish()).toEqual([dropped]);
+    });
+
+    it("forgives a move missed earlier", () => {
+      const engine = newEngine();
+      const players = [0, 1, 2].map(() => {
+        const id = engine.currentPlayerId!;
+        engine.playDefaultMove();
+        return id;
+      });
+      expect(engine.getBotsThatDidNotFinish().sort()).toEqual([...players].sort());
+
+      const id = engine.currentPlayerId!;
+      engine.playCard(id, engine.getState(id).currentHand[0]);
+      expect(engine.getBotsThatDidNotFinish()).not.toContain(id);
+      expect(engine.getBotsThatDidNotFinish()).toHaveLength(2);
+    });
+  });
+
   it("logs the trump a dealer chooses after a Wizard", () => {
     // The deck ends with Wizards and then Jesters, so this makes the trump card a Wizard
     vi.spyOn(Deck.prototype, "shuffle").mockImplementationOnce(function (this: Deck) {

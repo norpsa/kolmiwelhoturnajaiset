@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApi } from '../api';
 import { ScoreList } from '../components/ScoreList';
+import { UnrankedNote } from '../components/UnrankedNote';
 import { GameList } from '../types';
 
 export const GAMES_PER_PAGE = 25;
@@ -50,7 +51,10 @@ export const GamesPage = () => {
               {games.map(game => (
                 <tr key={game.gameId}>
                   <td>{new Date(game.finishedAt).toLocaleString()}</td>
-                  <td><ScoreList players={game.players} /></td>
+                  <td>
+                    <ScoreList result={game} />
+                    <UnrankedNote result={game} />
+                  </td>
                   <td><Link to={`/games/${game.gameId}`}>Replay</Link></td>
                 </tr>
               ))}

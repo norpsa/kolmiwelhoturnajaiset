@@ -329,6 +329,16 @@ export class GameEngine {
     }
   }
 
+  // Bots that weren't playing at the end: the server made their last move, because they
+  // had left or stopped answering. A bot that missed a move earlier and went on is fine.
+  getBotsThatDidNotFinish(): string[] {
+    const lastMoveWasAuto = new Map<string, boolean>();
+    for (const event of this.replayEvents) {
+      if ('auto' in event) lastMoveWasAuto.set(event.playerId, event.auto);
+    }
+    return this.players.filter(p => lastMoveWasAuto.get(p.id)).map(p => p.id);
+  }
+
   // Shows every hand, so this must not reach anyone before the game is over
   getReplay(): GameReplay {
     return {

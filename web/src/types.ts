@@ -41,6 +41,8 @@ export interface GameResult {
   gameId: string;
   finishedAt: string;
   players: PlayerResult[];
+  // Ids of bots that weren't playing at the end, which keeps the game out of the rankings
+  didNotFinish?: string[];
 }
 
 export interface GameList {
